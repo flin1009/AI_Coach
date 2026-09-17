@@ -94,3 +94,43 @@ def generate_coach_advice(client, candidate_models, report_text):
 
     error_msg = f"AI error after retry across candidate models ({', '.join(candidate_models)}): {last_error}"
     return error_msg, candidate_models[0]
+
+def generate_rest_day_advice(client, candidate_models, report_text):
+    """依序調用候選模型進行休息日/超補償教練分析 (支援 503 過載自動降級備援)"""
+    prompt = f"""
+    你是一位專業的馬拉松耐力運動教練。{RUNNER_NAME} 今天處於「完全休息日 / 未排定跑步日」。
+    背景：{RUNNER_BIRTH_YEAR} 年生、全馬 PB {RUNNER_PB}、Zone 2 心率上限 {ZONE2_MAX_HR}bpm。
+    
+    在耐力訓練中，適當的休息與超補償 (Supercompensation) 是體能躍升與預防過度訓練的關鍵。
+    請根據跑者近期的訓練歷程與累積負荷，提供一份專業、科學且具體可行的「今日休整與超補償指引」。
+
+    請針對以下 4 點重點提供分析與建議：
+    1. 【週期負荷與疲勞診斷】：縱觀過去一週的累積跑量、運動頻率與訓練負荷 (Load)，評估身體目前處於急性疲勞期、恢復期還是體能適應期。
+    2. 【今日主動恢復處方】：給予今日具體的休整指引（例如：是否適合進行 20~30 分鐘輕度散步、下肢筋膜滾筒放鬆、髖關節/小腿動態伸展，還是建議完全靜態休息）。
+    3. 【營養、補水與修復關鍵】：針對耐力跑者的肌肉修復，提醒今日飲食重點（優質蛋白質攝取、水分電解質平衡與睡眠修復建議）。
+    4. 【下次重啟訓練課表預告】：依據跑者的體能恢復節奏，具體預告明天或下次重啟訓練時，建議執行何種課表（例如：輕量 Zone 2 恢復跑 5~6km 喚醒神經肌肉，或已具備安排 Tempo / 間歇質量課表的條件）。
+
+    語氣請保持專業、鼓勵、精準，並帶一點工程師的科學簡潔感。
+    格式要求：請使用純文字繁體中文，嚴禁使用 LaTeX 數學語法（例如請勿輸出 $\rightarrow$ 或 \rightarrow，若需箭頭請一律直接使用一般文字符號 → 或 ->）。
+    歷史與統計數據：
+    {report_text}
+    """
+    last_error = None
+    for model_name in candidate_models:
+        for attempt in range(2):
+            try:
+                print(f"🤖 嘗試調用模型 (休整模式): {model_name} (第 {attempt + 1} 次)...")
+                response = client.models.generate_content(model=model_name, contents=prompt)
+                print(f"✨ 成功使用模型 {model_name} 完成休整分析！")
+                return response.text, model_name
+            except Exception as e:
+                last_error = e
+                print(f"⚠️ 模型 {model_name} 第 {attempt + 1} 次失敗: {e}")
+                if "503" in str(e) or "UNAVAILABLE" in str(e):
+                    print("   伺服器繁忙 (503)，等待 3 秒後重試或切換下一個模型...")
+                    time.sleep(3)
+                else:
+                    time.sleep(1)
+
+    error_msg = f"AI error after retry across candidate models ({', '.join(candidate_models)}): {last_error}"
+    return error_msg, candidate_models[0]

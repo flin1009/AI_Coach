@@ -1,4 +1,5 @@
 import re
+import datetime
 
 def format_pace(speed_mps):
     """將公尺/秒轉換為每公里配速 (分:秒)"""
@@ -93,3 +94,66 @@ def format_activity_summary(a):
         parts.append(f"卡路里 {int(cals)}kcal")
 
     return " | ".join(parts)
+ 
+def format_laps_table(laps):
+    """將分圈資料排版為等寬代碼表格 (使用 <pre> 標籤以適配 Telegram Monospace 顯示)"""
+    if not laps:
+        return ""
+    lines = []
+    lines.append("<pre>")
+    lines.append("圈數   配速   心率 步頻  時間")
+    lines.append("---------------------------")
+    for lap in laps:
+        l_idx = lap.get("lapIndex", 0)
+        l_pace = format_pace(lap.get("averageSpeed", 0))
+        l_hr = int(lap.get("averageHR", 0))
+        l_cad = int(lap.get("averageRunCadence", 0))
+        l_time = format_duration(lap.get("duration", 0))
+        lines.append(f"L{l_idx+1:02d}  {l_pace:>5}   {l_hr:>3}  {l_cad:>3} {l_time:>5}")
+    lines.append("</pre>")
+    return "\n".join(lines)
+
+def check_activity_recency(start_time_str, max_hours=36):
+    """檢查最新活動是否在指定小時內 (預設 36 小時)，並回傳 (is_recent, diff_hours)"""
+    if not start_time_str:
+        return False, 999.0
+    try:
+        clean_time = start_time_str.replace("T", " ")[:19]
+        act_dt = datetime.datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
+        now = datetime.datetime.now()
+        diff_hours = (now - act_dt).total_seconds() / 3600.0
+        return diff_hours <= max_hours, diff_hours
+    except Exception:
+        return True, 0.0
+
+def calculate_weekly_stats(activities):
+    """統計近期活動的累積總跑量、總負荷與運動次數分佈"""
+    total_run_dist_m = 0.0
+    total_run_sec = 0.0
+    total_load = 0.0
+    run_count = 0
+    cross_count = 0
+    
+    for a in activities:
+        type_key = a.get("activityType", {}).get("typeKey", "").lower()
+        s_dto = a.get("summaryDTO", {})
+        dist = a.get("distance", 0) or 0
+        dur = a.get("duration", 0) or 0
+        load = s_dto.get("activityTrainingLoad") or a.get("activityTrainingLoad") or 0
+        total_load += float(load)
+        
+        if "running" in type_key or "treadmill" in type_key:
+            run_count += 1
+            total_run_dist_m += float(dist)
+            total_run_sec += float(dur)
+        else:
+            cross_count += 1
+            
+    return {
+        "total_run_km": total_run_dist_m / 1000.0,
+        "total_run_duration": format_duration(total_run_sec),
+        "total_load": int(total_load),
+        "run_count": run_count,
+        "cross_count": cross_count,
+        "total_activities": len(activities)
+    }

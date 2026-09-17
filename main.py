@@ -14,7 +14,10 @@ from utils import (
     format_duration,
     format_hr_zones,
     clean_ai_text,
-    format_activity_summary
+    format_activity_summary,
+    format_laps_table,
+    check_activity_recency,
+    calculate_weekly_stats
 )
 from weather_service import get_open_meteo_weather
 from notifier import send_telegram
@@ -27,7 +30,8 @@ from garmin_service import (
 from ai_service import (
     get_genai_client,
     detect_candidate_models,
-    generate_coach_advice
+    generate_coach_advice,
+    generate_rest_day_advice
 )
 
 def run_main_task():
@@ -45,7 +49,53 @@ def run_main_task():
             print("📭 沒有找到近期活動")
             return
 
-        # 3. 組裝報表抬頭
+        latest_act = activities[0]
+        start_time_str = latest_act.get('startTimeLocal', '')
+        is_recent, diff_hours = check_activity_recency(start_time_str, max_hours=36)
+
+        # 若最新活動距今超過 36 小時，自動切換為【休整與超補償日報】模式
+        if not is_recent:
+            print(f"🌿 最新活動距今約 {diff_hours:.1f} 小時 (> 36h)，切換為【今日休整與體能恢復日報】模式...")
+            days_ago = int(diff_hours // 24)
+            hours_ago = int(diff_hours % 24)
+            time_ago_str = f"{days_ago} 天 {hours_ago} 小時前" if days_ago > 0 else f"{hours_ago} 小時前"
+            
+            stats = calculate_weekly_stats(activities)
+            
+            report = []
+            report.append(f"🌿 【{RUNNER_NAME} 今日休整與體能恢復日報 - {best_model}】")
+            report.append(f"背景：{RUNNER_BIRTH_YEAR}年生 | PB {RUNNER_PB} | Zone 2: {ZONE2_MAX_HR}bpm")
+            report.append(f"狀態：今日無新運動紀錄 (前次訓練於 {time_ago_str})")
+            report.append("=" * 30)
+            
+            report.append(f"📊 【近一週累積運動統計 (近 {stats['total_activities']} 筆)】")
+            report.append(f"  - 累積總跑量: {stats['total_run_km']:.2f} km")
+            report.append(f"  - 跑步總耗時: {stats['total_run_duration']}")
+            report.append(f"  - 累積總負荷: {stats['total_load']}")
+            report.append(f"  - 訓練次數: {stats['run_count']} 次跑步 / {stats['cross_count']} 次交叉訓練")
+            report.append("-" * 30)
+            
+            report.append(f"📋 【近期訓練歷程明細】")
+            for act in activities:
+                summary_line = format_activity_summary(act)
+                report.append(f"  - {summary_line}")
+            report.append("=" * 30)
+            
+            full_text = "\n".join(report)
+            print("🤖 正在諮詢 Gemini AI 休整與超補償建議...")
+            ai_advice, used_model = generate_rest_day_advice(ai_client, candidate_models, full_text)
+            
+            if used_model != best_model:
+                full_text = full_text.replace(f"🌿 【{RUNNER_NAME} 今日休整與體能恢復日報 - {best_model}】", f"🌿 【{RUNNER_NAME} 今日休整與體能恢復日報 - {used_model}】")
+            
+            final_message = full_text + "\n\n🤖 【Gemini 休整與超補償指引】\n" + clean_ai_text(ai_advice)
+            final_message = clean_ai_text(final_message)
+            
+            send_telegram(final_message, parse_mode="HTML")
+            print(f"✅ 今日休整任務完成：{datetime.datetime.now()}")
+            return
+
+        # 3. 組裝報表抬頭 (最新活動模式)
         report = []
         report.append(f"📊 【{RUNNER_NAME} 數據分析報表 - {best_model}】")
         report.append(f"背景：{RUNNER_BIRTH_YEAR}年生 | PB {RUNNER_PB} | Zone 2: {ZONE2_MAX_HR}bpm")
@@ -164,18 +214,11 @@ def run_main_task():
 
         entry += f"\n🌤️ 環境氣象: {om_weather_str}"
     
-        # 分圈細節
+        # 分圈細節 (以等寬表格排版)
         laps = fetch_activity_splits(client_garmin, a_id)
         if laps:
-            entry += "\n[分圈細節 (配速 | 心率 | 海拔上升 | 步頻 | 總時間)]"
-            for lap in laps:
-                l_idx = lap.get("lapIndex", 0)
-                l_pace = format_pace(lap.get("averageSpeed", 0))
-                l_hr = lap.get("averageHR", 0)
-                l_elev = int(lap.get("elevationGain", 0))
-                l_cad = int(lap.get("averageRunCadence", 0))
-                l_total_time = format_duration(lap.get("duration", 0))
-                entry += f"\n  - L{l_idx+1:02d}: {l_pace} | {l_hr}bpm | {l_elev}m | {l_cad}spm | {l_total_time}"
+            laps_table = format_laps_table(laps)
+            entry += f"\n[分圈細節]\n{laps_table}"
         
         report.append(entry)
         report.append("=" * 30)
@@ -194,7 +237,7 @@ def run_main_task():
         final_message = full_text + "\n\n🤖 【Gemini AI 教練建議】\n" + clean_ai_text(ai_advice)
         final_message = clean_ai_text(final_message)
         
-        send_telegram(final_message)
+        send_telegram(final_message, parse_mode="HTML")
         print(f"✅ 任務完成：{datetime.datetime.now()}")
 
     except Exception as e:
