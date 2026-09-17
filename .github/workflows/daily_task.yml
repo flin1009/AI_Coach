@@ -1,0 +1,41 @@
+name: Garmin AI Coach Report
+
+on:
+  schedule:
+    # 台灣時間 06:45 = UTC 22:45
+    - cron: '45 22 * * *'
+  workflow_dispatch: # 允許手動從網頁按按鈕執行
+
+jobs:
+  run-report:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install requests google-genai garminconnect
+
+      - name: Execute Script
+        env:
+          # --- 1. 必填帳號與 API 金鑰 ---
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PWD: ${{ secrets.GARMIN_PWD }}
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # --- 2. 跑者背景與氣象參數 (可由 Secrets 注入保護隱私，若未提供則使用程式預設值) ---
+          RUNNER_NAME: ${{ secrets.RUNNER_NAME }}
+          RUNNER_BIRTH_YEAR: ${{ secrets.RUNNER_BIRTH_YEAR }}
+          RUNNER_PB: ${{ secrets.RUNNER_PB }}
+          ZONE2_MAX_HR: ${{ secrets.ZONE2_MAX_HR }}
+          DEFAULT_LAT: ${{ secrets.DEFAULT_LAT }}
+          DEFAULT_LON: ${{ secrets.DEFAULT_LON }}
+        run: python main.py
