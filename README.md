@@ -109,6 +109,12 @@ flowchart TD
 * **分圈等寬表格 (Monospace)**：逐公里數據以 `<pre>` 標籤排版，在手機端呈現整齊不折行的專業表格。
 * **LaTeX 符號淨化**：自動過濾 AI 產生的 `$\rightarrow$` 數學符號為標準箭頭 `→`。
 
+### 7. 🔑 Garmin OAuth Token 快取與 GitHub Actions 跨排程持久化
+* **防限流與秒速連線**：優先讀取本地已保存之 OAuth Token（預設 `~/.garminconnect`，亦支援 `GARMINTOKENS` 自訂路徑）直接恢復連線，免去重複執行帳密 SSO 驗證流程，大幅降低觸發 Garmin 伺服器 Cloudflare 防爬蟲或 429 Too Many Requests 阻擋之風險。
+* **智慧安全回退**：若無快取或 Token 過期，自動退回使用帳號密碼登入，並重新快取新 Token。
+* **GitHub Actions 雲端持久化**：工作流程整合 `actions/cache@v4`，每次排程執行完畢自動將 Token 快取至 GitHub 雲端，隔日自動還原使用。
+* **資安防護**：`.gitignore` 預設排除 `.garminconnect/` 與 Token 相關 JSON 檔案，防止個人憑證外洩。
+
 ---
 
 ## 📂 專案檔案結構 (File Structure)
@@ -117,16 +123,16 @@ flowchart TD
 AI_Coach/
 ├── .github/
 │   └── workflows/
-│       └── daily_task.yml       # GitHub Actions 每日排程與手動觸發設定 (內建 matplotlib)
+│       └── daily_task.yml       # GitHub Actions 每日排程、actions/cache Token 雲端快取與環境依賴
 ├── config.py                    # 集中管理 Secrets 環境變數與跑者個人化參數
 ├── utils.py                     # 配速換算、ACWR 計算、心率統計、分圈表格與文字淨化工具
 ├── weather_service.py           # Open-Meteo 氣象 API 連線與數據擷取模組
 ├── chart_service.py             # 專業運動遙測儀表板圖表繪製模組 (Matplotlib 深色風格)
 ├── notifier.py                  # Telegram 機器人文字訊息與圖表圖片推播
-├── garmin_service.py            # Garmin Connect 登入驗證、活動、生理恢復 (HRV/RHR) 解析
+├── garmin_service.py            # Garmin Connect 登入驗證 (Token 本地快取)、活動、生理恢復解析
 ├── ai_service.py                # Gemini AI 模型動態掃描、503 降級備援與教練 Prompt 封裝
 ├── main.py                      # 系統主調度核心（GitHub Actions 執行入口點）
-├── .gitignore                   # Git 排除清單（忽略快取、虛擬環境與本機記錄）
+├── .gitignore                   # Git 排除清單（忽略 Token 憑證、快取、虛擬環境與本機記錄）
 └── README.md                    # 專案詳細介紹與架構文檔
 ```
 

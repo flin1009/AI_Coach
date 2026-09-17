@@ -1,14 +1,40 @@
 import datetime
+import os
+from pathlib import Path
 from garminconnect import Garmin
 from config import GARMIN_EMAIL, GARMIN_PWD
 
+# 支援本地與雲端 Token 快取目錄 (優先讀取 GARMINTOKENS 環境變數，預設為 ~/.garminconnect)
+TOKEN_DIR = os.getenv("GARMINTOKENS", str(Path.home() / ".garminconnect"))
+
 def get_garmin_client():
-    """登入並回傳 Garmin 客戶端實例"""
+    """登入並回傳 Garmin 客戶端實例（支援 Token 本地快取與自動刷新）"""
+    tokenstore_path = str(Path(TOKEN_DIR).expanduser())
+
+    # 1. 嘗試優先使用本地已保存之 Token 恢復連線 (避免重複走 SSO 帳密登入被限流)
+    try:
+        print(f"[Garmin] 嘗試使用 Token 快取恢復連線: {tokenstore_path}")
+        client = Garmin()
+        client.login(tokenstore_path)
+        print("[Garmin] 登入成功 (已透過 Token 快取恢復連線)")
+        return client
+    except Exception as token_err:
+        print(f"[Garmin] 無法使用 Token 快取 ({token_err})，改用帳號密碼進行完整登入...")
+
+    # 2. 若無快取或快取無效，使用帳號密碼登入並自動儲存最新 Token
     if not GARMIN_EMAIL or not GARMIN_PWD:
-        raise ValueError("找不到 GARMIN_EMAIL 或 GARMIN_PWD 環境變數")
-    client = Garmin(GARMIN_EMAIL, GARMIN_PWD)
-    client.login()
-    return client
+        raise ValueError("找不到 GARMIN_EMAIL 或 GARMIN_PWD 環境變數，且無有效 Token 快取")
+
+    try:
+        os.makedirs(tokenstore_path, exist_ok=True)
+        client = Garmin(GARMIN_EMAIL, GARMIN_PWD)
+        client.login(tokenstore_path)
+        print("[Garmin] 登入成功 (已儲存/更新 Token 快取)")
+        return client
+    except Exception as e:
+        print(f"[Garmin] 帳密登入失敗: {e}")
+        raise
+
 
 def fetch_recent_activities(client, count=7):
     """取得近期運動活動"""

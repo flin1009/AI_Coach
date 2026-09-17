@@ -218,3 +218,10 @@ __marimo__/
 .streamlit/secrets.toml
 *.bak
 garmin_logs/
+
+# Garmin OAuth Token Cache
+.garminconnect/
+.garmin_tokens/
+**/garmin_tokens.json
+**/*oauth*.json
+
