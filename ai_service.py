@@ -1,6 +1,11 @@
 import re
 import time
+import warnings
 from google import genai
+
+# 抑制 Google GenAI SDK 針對單次對話 generate_content 的 AFC 警示訊息
+warnings.filterwarnings("ignore", message=".*automatic function calling.*")
+
 from config import (
     GEMINI_API_KEY,
     RUNNER_NAME,

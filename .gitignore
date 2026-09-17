@@ -224,4 +224,7 @@ garmin_logs/
 .garmin_tokens/
 **/garmin_tokens.json
 **/*oauth*.json
+*token*.txt
+*token*.base64
+
 
