@@ -1,5 +1,6 @@
 import datetime
 import os
+import time
 from config import (
     ACTIVITIES_COUNT,
     DEFAULT_LAT,
@@ -38,7 +39,7 @@ from ai_service import (
     generate_coach_advice,
     generate_rest_day_advice
 )
-from chart_service import generate_telemetry_chart
+from chart_service import generate_telemetry_chart, generate_all_telemetry_charts
 
 def run_main_task():
     # 1. 初始化 AI 客戶端與模型
@@ -122,10 +123,12 @@ def run_main_task():
             
             send_telegram(final_message, parse_mode="HTML")
 
-            # 生成並推播圖表
-            print("📊 正在產出視覺化休整儀表板圖表...")
-            if generate_telemetry_chart(None, None, acwr_data, None, chart_path):
-                send_telegram_photo(chart_path, caption=f"📊 {RUNNER_NAME} 今日休整與 ACWR 負荷監控 (ACWR: {acwr_data['acwr']})")
+            # 生成並推播休整圖表 (各圖表獨立分開，大字體高清晰)
+            print("📊 正在產出休整與 ACWR 負荷圖表...")
+            charts = generate_all_telemetry_charts(None, None, acwr_data, None, output_dir=LOCAL_SAVE_DIR)
+            for c_path, c_caption in charts:
+                send_telegram_photo(c_path, caption=c_caption)
+                time.sleep(0.5)
 
             print(f"✅ 今日休整任務完成：{datetime.datetime.now()}")
             return
@@ -283,10 +286,12 @@ def run_main_task():
         
         send_telegram(final_message, parse_mode="HTML")
 
-        # 8. 生成並推播視覺化遙測圖表
-        print("📊 正在產出視覺化運動儀表板圖表...")
-        if generate_telemetry_chart(latest_act, laps, acwr_data, hr_zones, chart_path):
-            send_telegram_photo(chart_path, caption=f"📊 {RUNNER_NAME} 跑步遙測與 ACWR 負荷圖表 (ACWR: {acwr_data['acwr']})")
+        # 8. 生成並推播視覺化遙測圖表 (各圖表獨立分開，大字體高清晰)
+        print("📊 正在產出專業運動遙測獨立圖表...")
+        charts = generate_all_telemetry_charts(latest_act, laps, acwr_data, hr_zones, output_dir=LOCAL_SAVE_DIR)
+        for c_path, c_caption in charts:
+            send_telegram_photo(c_path, caption=c_caption)
+            time.sleep(0.5)
 
         print(f"✅ 任務完成：{datetime.datetime.now()}")
 
