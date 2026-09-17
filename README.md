@@ -26,10 +26,9 @@ flowchart TB
     %% ================= 階段一：觸發、調度與資料採集 =================
     subgraph STAGE1["<b>【第一階段】自動排程、流程協調調度與數據採集</b>"]
         direction LR
-        subgraph G_TRIG["⏰ 觸發與快取 (Trigger)"]
+        subgraph G_TRIG["⏰ 觸發與排程 (Trigger)"]
             direction TB
             GHA["<b>GitHub Actions</b><br/>每日定時排程 (Cron)<br/>網頁按鈕手動觸發"]
-            CACHE["<b>actions/cache @ v4</b><br/>Garmin Token 跨日雲端快取"]
         end
 
         subgraph G_CORE["⚙️ 核心調度中心 (Orchestrator)"]
@@ -41,7 +40,7 @@ flowchart TB
 
         subgraph G_DATA["📡 數據採集層 (Data Services)"]
             direction TB
-            GARMIN["<b>garmin_service.py</b><br/>OAuth 免密登入 / 帳密回退<br/>活動歷程、分圈、HRV、RHR"]
+            GARMIN["<b>garmin_service.py</b><br/>Garmin Connect 帳密登入<br/>活動歷程、分圈、HRV、RHR"]
             WEATHER["<b>weather_service.py</b><br/>Open-Meteo 氣象 API<br/>GPS 座標活動當下精準溫濕度"]
         end
     end
@@ -61,7 +60,7 @@ flowchart TB
 
         subgraph G_PUSH["📲 雙軌推播層 (Notification)"]
             direction TB
-            NOTIFY["<b>notifier.py</b><br/>HTML 等寬分圈表格容錯推播<br/>sendPhoto 高清圖片逐張發送"]
+            NOTIFY["<b>notifier.py</b><br/>純文字分圈數據推播<br/>sendPhoto 高清圖片逐張發送"]
             TG[("<b>Telegram 跑者手機</b><br/>💬 結構化深度日報<br/>🖼️ 3 張滿版大圖無壓縮呈現")]
         end
     end
@@ -73,7 +72,6 @@ flowchart TB
 
     %% 連線關聯
     GHA -->|1. 啟動環境| MAIN
-    CACHE <-->|還原 / 更新 Token| GARMIN
     CONF -.->|注入參數| MAIN
     UTIL -.->|輔助計算| MAIN
 
@@ -244,18 +242,10 @@ Gemini API 提供頂尖的生成式 AI 推理能力，用於深度解析跑者�
 
 ---
 
-### 3. ⌚ Garmin Connect 帳號與 Token 快取機制 (`GARMIN_EMAIL`, `GARMIN_PWD`, `GARMINTOKENS_BASE64`)
+### 3. ⌚ Garmin Connect 帳號說明 (`GARMIN_EMAIL`, `GARMIN_PWD`)
 * 本專案採用開源 Python 庫 [`python-garminconnect`](https://github.com/cyberjunky/python-garminconnect)，直接與 Garmin Connect 雲端伺服器進行同步。
-* **無需申請企業 API**：Garmin 官方 Health API 審核門檻高且不對個人開放，本專案支援使用個人 Garmin Connect 帳號密碼進行驗證。
-* **解決 GitHub Actions 雲端限流 (HTTP 429 / 卡住 4 分鐘) 必備技巧**：
-  * Garmin 的 Cloudflare WAF 會對微軟 Azure（GitHub Actions 雲端執行機）的資料中心 IP 進行極為嚴格的密碼登入限流（出現 `mobile+cffi returned 429: IP rate limited by Garmin` 並重試 4 分鐘以上甚至失敗）。
-  * **永久解決方案**：在您自己的電腦（家用寬頻或手機熱點，永遠不會被限流）執行本專案內建的匯出工具：
-    ```bash
-    python export_garmin_tokens.py
-    ```
-  * 登入後將自動產生一串 Base64 加密字串，將其複製並貼入 GitHub Secrets 的 `GARMINTOKENS_BASE64`。
-  * 設定後，雲端排程將**完全跳過帳密 SSO 驗證**，每次執行皆在 **1 秒內憑 Token 快速復原連線**，穩定可靠！
-* **雙重驗證 (2FA) 提示**：若您的帳號開啟了 2FA，透過上述 `export_garmin_tokens.py` 本機匯出 Token 亦是唯一能讓 GitHub Actions 自動無人值守運行的最佳解法。
+* **無需申請企業 API**：Garmin 官方的 Health API 通常僅對企業開放且審核門檻高，本專案只需填入您平時在手機 **Garmin Connect App 登入時使用的信箱與密碼** 即可。
+* **雙重驗證 (2FA) 提示**：若您的 Garmin 帳號已開啟雙重驗證，可能導致自動排程腳本在遠端登入時受阻。若遇到登入失敗，請確認 Garmin Connect 帳號的安全性設定。
 
 ---
 
@@ -303,15 +293,14 @@ GitHub Secrets 是 GitHub 提供的加密環境變數庫。存放在這裡的帳
 
 #### 變數清單與預設值對照表
 
-##### A. 核心服務與 API 認證金鑰
-| Secret 名稱 | 屬性 | 說明 | 範例與填寫方式 |
-| :--- | :---: | :--- | :--- |
-| `GARMIN_EMAIL` | **必填** | Garmin Connect 登入信箱 | `your_account@email.com` |
-| `GARMIN_PWD` | **必填** | Garmin Connect 登入密碼 | 個人 Garmin 登入密碼 |
-| `GARMINTOKENS_BASE64` | **強烈推薦** | 本地匯出的 Token Base64（**免除 429 限流卡住 4 分鐘**） | 執行 `python export_garmin_tokens.py` 產出之字串 |
-| `TG_TOKEN` | **必填** | Telegram Bot Token | 向 [@BotFather](https://t.me/botfather) 建立機器人取得之金鑰 |
-| `TG_CHAT_ID` | **必填** | 接收訊息的 Telegram Chat ID | 透過 [@userinfobot](https://t.me/userinfobot) 查詢取得之純數字 ID |
-| `GEMINI_API_KEY` | **必填** | Google Gemini API Key | 前往 [Google AI Studio](https://aistudio.google.com/) 免費建立 |
+##### A. 核心服務與 API 認證金鑰（必填 5 項）
+| Secret 名稱 | 說明 | 範例與填寫方式 |
+| :--- | :--- | :--- |
+| `GARMIN_EMAIL` | Garmin Connect 登入信箱 | `your_account@email.com` |
+| `GARMIN_PWD` | Garmin Connect 登入密碼 | 個人 Garmin 登入密碼 |
+| `TG_TOKEN` | Telegram Bot Token | 向 [@BotFather](https://t.me/botfather) 建立機器人取得之金鑰 |
+| `TG_CHAT_ID` | 接收訊息的 Telegram Chat ID | 透過 [@userinfobot](https://t.me/userinfobot) 查詢取得之純數字 ID |
+| `GEMINI_API_KEY` | Google Gemini API Key | 前往 [Google AI Studio](https://aistudio.google.com/) 免費建立 |
 
 ##### B. 個人化跑者背景與氣象參數（建議填寫，完全保護隱私）
 > [!TIP]

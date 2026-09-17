@@ -121,7 +121,7 @@ def run_main_task():
             final_message = full_text + "\n\n🤖 【Gemini 休整與超補償指引】\n" + clean_ai_text(ai_advice)
             final_message = clean_ai_text(final_message)
             
-            send_telegram(final_message, parse_mode="HTML")
+            send_telegram(final_message)
 
             # 生成並推播休整圖表 (各圖表獨立分開，大字體高清晰)
             print("📊 正在產出休整與 ACWR 負荷圖表...")
@@ -261,11 +261,11 @@ def run_main_task():
 
         entry += f"\n🌤️ 環境氣象: {om_weather_str}"
     
-        # 分圈細節 (以等寬表格排版)
+        # 分圈細節 (純文字排版)
         laps = fetch_activity_splits(client_garmin, a_id)
         if laps:
-            laps_table = format_laps_table(laps)
-            entry += f"\n[分圈細節]\n{laps_table}"
+            laps_str = format_laps_table(laps)
+            entry += f"\n{laps_str}"
         
         report.append(entry)
         report.append("=" * 30)
@@ -284,7 +284,7 @@ def run_main_task():
         final_message = full_text + "\n\n🤖 【Gemini AI 教練建議】\n" + clean_ai_text(ai_advice)
         final_message = clean_ai_text(final_message)
         
-        send_telegram(final_message, parse_mode="HTML")
+        send_telegram(final_message)
 
         # 8. 生成並推播視覺化遙測圖表 (各圖表獨立分開，大字體高清晰)
         print("📊 正在產出專業運動遙測獨立圖表...")

@@ -96,21 +96,18 @@ def format_activity_summary(a):
     return " | ".join(parts)
  
 def format_laps_table(laps):
-    """將分圈資料排版為等寬代碼表格 (使用 <pre> 標籤以適配 Telegram Monospace 顯示)"""
+    """格式化分圈細節清單 (原方式：純文字清單，無任何 HTML 標籤，保證相容所有裝置)"""
     if not laps:
         return ""
-    lines = []
-    lines.append("<pre>")
-    lines.append("圈數   配速   心率 步頻  時間")
-    lines.append("---------------------------")
+    lines = ["[分圈細節 (配速 | 心率 | 海拔上升 | 步頻 | 總時間)]"]
     for lap in laps:
         l_idx = lap.get("lapIndex", 0)
         l_pace = format_pace(lap.get("averageSpeed", 0))
         l_hr = int(lap.get("averageHR", 0))
+        l_elev = int(lap.get("elevationGain", 0))
         l_cad = int(lap.get("averageRunCadence", 0))
         l_time = format_duration(lap.get("duration", 0))
-        lines.append(f"L{l_idx+1:02d}  {l_pace:>5}   {l_hr:>3}  {l_cad:>3} {l_time:>5}")
-    lines.append("</pre>")
+        lines.append(f"  - L{l_idx+1:02d}: {l_pace} | {l_hr}bpm | {l_elev}m | {l_cad}spm | {l_time}")
     return "\n".join(lines)
 
 def check_activity_recency(start_time_str, max_hours=36):
