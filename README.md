@@ -93,9 +93,21 @@ flowchart TD
 * **7 筆微週期疲勞監控**：前 6 筆活動提供一週累積總跑量、交叉訓練（自行車、重訓、游泳等）脈絡，診斷急性疲勞指數（Acute Training Load），給予次日最科學的訓練/休整處方。
 * **動態多模型降級 (Fallback Mechanism)**：啟動時自動掃描 Google 最新版 Flash 模型清單並由新至舊排序。遭遇 Google 伺服器尖峰 503 UNAVAILABLE 錯誤時，自動無縫切換備援模型重試。
 
-### 4. 📲 Telegram 智慧格式化推播
-* **LaTeX 符號淨化**：自動過濾 AI 產生的 `$\rightarrow$` 數學符號為標準箭頭 `→`，確保手機端閱讀舒適無亂碼。
-* **長訊自動分段**：突破 Telegram 單則訊息 4096 字元限制，超長診斷內容自動分段推播不中斷。
+### 4. 📈 ACWR 負荷比與體能監測 (Acute:Chronic Workload Ratio)
+* 自動回溯近 28 天訓練大數據，精準計算急劇負荷（近 7 天）與慢性體能（近 28 天週均）之比值。
+* 科學標記體能增長區間與預防受傷風險：
+  * 🟢 **最佳適應甜點區 (Sweet Spot, 0.8 ~ 1.3)**：安全增長有氧體能，受傷風險最低。
+  * 🟡 **疲勞警戒期 (Caution, 1.3 ~ 1.5)**：急劇疲勞快速累積，提醒跑者密切監控肌肉狀態。
+  * 🔴 **高受傷風險區 (Danger Zone, ≥ 1.5)**：過度訓練預警，AI 教練主動介入要求減量。
+
+### 5. 🩺 智慧生理指標優雅降級 (Graceful Degradation)
+* 自動安全讀取夜間 **HRV 心率變異度**（前夜平均、7日基準線、平衡狀態）、**靜止心率 (RHR)** 與 **身體電量**。
+* **零干擾防護**：若手錶未同步或未配戴入睡，系統自動無縫略過該區塊，絕不拋錯中斷；有數據時無縫融入 AI 提示詞評估中樞神經系統修復度。
+
+### 6. 📊 專業遙測圖表與 Telegram 智慧推播
+* **視覺化儀表板 (Telemetry Chart)**：整合 Matplotlib 自動產出深色高科技風格儀表板（包含 ACWR 負荷柱狀、Z1~Z5 心率區間環圈分佈、分圈配速心率雙軸走勢圖），透過 Telegram SendPhoto 圖文並茂直達手機。
+* **分圈等寬表格 (Monospace)**：逐公里數據以 `<pre>` 標籤排版，在手機端呈現整齊不折行的專業表格。
+* **LaTeX 符號淨化**：自動過濾 AI 產生的 `$\rightarrow$` 數學符號為標準箭頭 `→`。
 
 ---
 
@@ -105,12 +117,13 @@ flowchart TD
 AI_Coach/
 ├── .github/
 │   └── workflows/
-│       └── daily_task.yml       # GitHub Actions 每日排程與手動觸發設定
+│       └── daily_task.yml       # GitHub Actions 每日排程與手動觸發設定 (內建 matplotlib)
 ├── config.py                    # 集中管理 Secrets 環境變數與跑者個人化參數
-├── utils.py                     # 配速換算、時間格式化、心率區間計算與文字淨化工具
+├── utils.py                     # 配速換算、ACWR 計算、心率統計、分圈表格與文字淨化工具
 ├── weather_service.py           # Open-Meteo 氣象 API 連線與數據擷取模組
-├── notifier.py                  # Telegram 機器人連線與長訊息分段發送
-├── garmin_service.py            # Garmin Connect 登入驗證、活動、分圈與區間數據解析
+├── chart_service.py             # 專業運動遙測儀表板圖表繪製模組 (Matplotlib 深色風格)
+├── notifier.py                  # Telegram 機器人文字訊息與圖表圖片推播
+├── garmin_service.py            # Garmin Connect 登入驗證、活動、生理恢復 (HRV/RHR) 解析
 ├── ai_service.py                # Gemini AI 模型動態掃描、503 降級備援與教練 Prompt 封裝
 ├── main.py                      # 系統主調度核心（GitHub Actions 執行入口點）
 ├── .gitignore                   # Git 排除清單（忽略快取、虛擬環境與本機記錄）

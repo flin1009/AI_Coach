@@ -157,3 +157,115 @@ def calculate_weekly_stats(activities):
         "cross_count": cross_count,
         "total_activities": len(activities)
     }
+
+def calculate_acwr(activities):
+    """計算 ACWR (急性與慢性負荷比, Acute:Chronic Workload Ratio)
+    - Acute Load (急性負荷): 過去 7 天的累積訓練負荷
+    - Chronic Load (慢性負荷): 過去 28 天 (4 週) 的週平均負荷
+    - 比值評估：
+      < 0.8: 低負荷 / 減量恢復期 (Under-training)
+      0.8 ~ 1.3: 最佳適應甜點區 (Sweet Spot, 受傷風險最低)
+      1.31 ~ 1.49: 疲勞警戒期 (Caution)
+      >= 1.50: 受傷高危險區 (Danger Zone)
+    """
+    if not activities:
+        return {
+            "acwr": 0.0,
+            "acute_load": 0,
+            "chronic_load": 0,
+            "status_desc": "無運動數據",
+            "status_zone": "none"
+        }
+    
+    now = datetime.datetime.now()
+    acute_cutoff = (now - datetime.timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+    chronic_cutoff = (now - datetime.timedelta(days=28)).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    acute_load = 0.0
+    chronic_load_total = 0.0
+    
+    for a in activities:
+        start_time_str = a.get("startTimeLocal", "")
+        if not start_time_str:
+            continue
+        try:
+            clean_time = start_time_str.replace("T", " ")[:19]
+            act_dt = datetime.datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            continue
+            
+        s_dto = a.get("summaryDTO", {})
+        load = float(s_dto.get("activityTrainingLoad") or a.get("activityTrainingLoad") or 0)
+        
+        if act_dt >= acute_cutoff:
+            acute_load += load
+        if act_dt >= chronic_cutoff:
+            chronic_load_total += load
+            
+    # 28 天 (4 週) 之週平均負荷
+    chronic_load_weekly_avg = chronic_load_total / 4.0
+    
+    if chronic_load_weekly_avg <= 0:
+        if acute_load > 0:
+            acwr = 1.0
+            status_desc = "初期建立 (基準累積中)"
+            status_zone = "building"
+        else:
+            acwr = 0.0
+            status_desc = "休整期 (無負荷)"
+            status_zone = "rest"
+    else:
+        acwr = acute_load / chronic_load_weekly_avg
+        if acwr < 0.8:
+            status_desc = "低負荷 / 減量恢復期"
+            status_zone = "under"
+        elif acwr <= 1.3:
+            status_desc = "最佳適應甜點區 (Sweet Spot)"
+            status_zone = "optimal"
+        elif acwr < 1.5:
+            status_desc = "疲勞警戒期 (Caution)"
+            status_zone = "caution"
+        else:
+            status_desc = "高受傷風險危險區 (Danger Zone)"
+            status_zone = "danger"
+            
+    return {
+        "acwr": round(acwr, 2),
+        "acute_load": int(acute_load),
+        "chronic_load": int(chronic_load_weekly_avg),
+        "status_desc": status_desc,
+        "status_zone": status_zone
+    }
+
+def format_recovery_metrics(recovery):
+    """將生理恢復數據 (HRV/RHR/電量) 格式化為簡明文字"""
+    if not recovery:
+        return ""
+    lines = ["🩺 【今日自律神經與生理恢復狀態】"]
+    parts_1 = []
+    if recovery.get("resting_hr"):
+        parts_1.append(f"靜止心率: {recovery['resting_hr']} bpm")
+    if recovery.get("body_battery"):
+        parts_1.append(f"身體電量: {recovery['body_battery']}%")
+    if parts_1:
+        lines.append(f"  - {' | '.join(parts_1)}")
+        
+    parts_2 = []
+    if recovery.get("hrv_last_night"):
+        hrv_str = f"夜間 HRV: {recovery['hrv_last_night']} ms"
+        extra = []
+        if recovery.get("hrv_weekly_avg"):
+            extra.append(f"7日均值 {recovery['hrv_weekly_avg']} ms")
+        if recovery.get("hrv_status"):
+            st_map = {"BALANCED": "均衡", "UNBALANCED": "失衡", "LOW": "偏低", "POOR": "不佳"}
+            st_zh = st_map.get(recovery["hrv_status"], recovery["hrv_status"])
+            extra.append(f"狀態: {st_zh}")
+        if extra:
+            hrv_str += f" ({' | '.join(extra)})"
+        parts_2.append(hrv_str)
+        
+    if parts_2:
+        lines.append(f"  - {' | '.join(parts_2)}")
+        
+    return "\n".join(lines) if len(lines) > 1 else ""
+

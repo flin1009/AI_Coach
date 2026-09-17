@@ -7,7 +7,8 @@ from config import (
     RUNNER_NAME,
     RUNNER_BIRTH_YEAR,
     RUNNER_PB,
-    ZONE2_MAX_HR
+    ZONE2_MAX_HR,
+    LOCAL_SAVE_DIR
 )
 from utils import (
     format_pace,
@@ -17,15 +18,19 @@ from utils import (
     format_activity_summary,
     format_laps_table,
     check_activity_recency,
-    calculate_weekly_stats
+    calculate_weekly_stats,
+    calculate_acwr,
+    format_recovery_metrics
 )
 from weather_service import get_open_meteo_weather
-from notifier import send_telegram
+from notifier import send_telegram, send_telegram_photo
 from garmin_service import (
     get_garmin_client,
     fetch_recent_activities,
+    fetch_extended_activities,
     fetch_activity_splits,
-    fetch_activity_hr_zones
+    fetch_activity_hr_zones,
+    fetch_daily_recovery_metrics
 )
 from ai_service import (
     get_genai_client,
@@ -33,6 +38,7 @@ from ai_service import (
     generate_coach_advice,
     generate_rest_day_advice
 )
+from chart_service import generate_telemetry_chart
 
 def run_main_task():
     # 1. 初始化 AI 客戶端與模型
@@ -48,6 +54,20 @@ def run_main_task():
         if not activities:
             print("📭 沒有找到近期活動")
             return
+
+        # 3. 取得長週期活動 (28天) 與今日生理指標 (優雅降級)
+        extended_activities = fetch_extended_activities(client_garmin, count=35)
+        acwr_data = calculate_acwr(extended_activities if extended_activities else activities)
+        print(f"📈 ACWR 負荷比計算: {acwr_data['acwr']} ({acwr_data['status_desc']}) | 急性: {acwr_data['acute_load']} | 慢性: {acwr_data['chronic_load']}")
+
+        recovery_metrics = fetch_daily_recovery_metrics(client_garmin)
+        recovery_str = format_recovery_metrics(recovery_metrics)
+        if recovery_str:
+            print(f"🩺 成功取得今日生理恢復數據: RHR={recovery_metrics.get('resting_hr')}bpm, HRV={recovery_metrics.get('hrv_last_night')}ms")
+        else:
+            print("ℹ️ 今日無生理恢復數據 (手錶未同步或未配戴入睡)，優雅略過此區塊。")
+
+        chart_path = os.path.join(LOCAL_SAVE_DIR, "telemetry_dashboard.png")
 
         latest_act = activities[0]
         start_time_str = latest_act.get('startTimeLocal', '')
@@ -67,6 +87,15 @@ def run_main_task():
             report.append(f"背景：{RUNNER_BIRTH_YEAR}年生 | PB {RUNNER_PB} | Zone 2: {ZONE2_MAX_HR}bpm")
             report.append(f"狀態：今日無新運動紀錄 (前次訓練於 {time_ago_str})")
             report.append("=" * 30)
+
+            if recovery_str:
+                report.append(recovery_str)
+                report.append("-" * 30)
+
+            report.append("📈 【ACWR 急性與慢性負荷監控 (近28日)】")
+            report.append(f"  - ACWR 比值: {acwr_data['acwr']} ({acwr_data['status_desc']})")
+            report.append(f"  - 急性負荷 (近7日): {acwr_data['acute_load']} | 慢性負荷 (28日週均): {acwr_data['chronic_load']}")
+            report.append("-" * 30)
             
             report.append(f"📊 【近一週累積運動統計 (近 {stats['total_activities']} 筆)】")
             report.append(f"  - 累積總跑量: {stats['total_run_km']:.2f} km")
@@ -92,16 +121,31 @@ def run_main_task():
             final_message = clean_ai_text(final_message)
             
             send_telegram(final_message, parse_mode="HTML")
+
+            # 生成並推播圖表
+            print("📊 正在產出視覺化休整儀表板圖表...")
+            if generate_telemetry_chart(None, None, acwr_data, None, chart_path):
+                send_telegram_photo(chart_path, caption=f"📊 {RUNNER_NAME} 今日休整與 ACWR 負荷監控 (ACWR: {acwr_data['acwr']})")
+
             print(f"✅ 今日休整任務完成：{datetime.datetime.now()}")
             return
 
-        # 3. 組裝報表抬頭 (最新活動模式)
+        # 4. 組裝報表抬頭 (最新活動模式)
         report = []
         report.append(f"📊 【{RUNNER_NAME} 數據分析報表 - {best_model}】")
         report.append(f"背景：{RUNNER_BIRTH_YEAR}年生 | PB {RUNNER_PB} | Zone 2: {ZONE2_MAX_HR}bpm")
         report.append("=" * 30)
 
-        # 4. 近期訓練脈絡 (近 7 筆歷程簡要列表)
+        if recovery_str:
+            report.append(recovery_str)
+            report.append("-" * 30)
+
+        report.append("📈 【ACWR 急性與慢性負荷監控 (近28日)】")
+        report.append(f"  - ACWR 比值: {acwr_data['acwr']} ({acwr_data['status_desc']})")
+        report.append(f"  - 急性負荷 (近7日): {acwr_data['acute_load']} | 慢性負荷 (28日週均): {acwr_data['chronic_load']}")
+        report.append("-" * 30)
+
+        # 5. 近期訓練脈絡 (近 7 筆歷程簡要列表)
         report.append(f"📋 【近期訓練歷程 (近 {len(activities)} 筆摘要)】")
         for idx, act in enumerate(activities):
             tag = " [最新]" if idx == 0 else ""
@@ -238,6 +282,12 @@ def run_main_task():
         final_message = clean_ai_text(final_message)
         
         send_telegram(final_message, parse_mode="HTML")
+
+        # 8. 生成並推播視覺化遙測圖表
+        print("📊 正在產出視覺化運動儀表板圖表...")
+        if generate_telemetry_chart(latest_act, laps, acwr_data, hr_zones, chart_path):
+            send_telegram_photo(chart_path, caption=f"📊 {RUNNER_NAME} 跑步遙測與 ACWR 負荷圖表 (ACWR: {acwr_data['acwr']})")
+
         print(f"✅ 任務完成：{datetime.datetime.now()}")
 
     except Exception as e:
