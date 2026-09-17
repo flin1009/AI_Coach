@@ -12,60 +12,114 @@
 
 ## 📐 系統架構圖 (System Architecture)
 
+<div align="center">
+  <img src="assets/architecture.png" alt="AI Coach System Architecture" width="100%" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
+</div>
+
+<br/>
+
+<details open>
+<summary><b>📊 點擊切換 / 展開 互動式向量流程圖 (Mermaid High-Contrast Diagram)</b></summary>
+
 ```mermaid
-flowchart TD
-    subgraph Trigger["⏰ 觸發層 (Trigger)"]
-        GHA["GitHub Actions<br/>(Cron 每日自動排程 / 網頁手動觸發)"]
+flowchart TB
+    %% ================= 階段一：觸發、調度與資料採集 =================
+    subgraph STAGE1["<b>【第一階段】自動排程、流程協調調度與數據採集</b>"]
+        direction LR
+        subgraph G_TRIG["⏰ 觸發與快取 (Trigger)"]
+            direction TB
+            GHA["<b>GitHub Actions</b><br/>每日定時排程 (Cron)<br/>網頁按鈕手動觸發"]
+            CACHE["<b>actions/cache @ v4</b><br/>Garmin Token 跨日雲端快取"]
+        end
+
+        subgraph G_CORE["⚙️ 核心調度中心 (Orchestrator)"]
+            direction TB
+            MAIN["<b>main.py</b><br/>主流程調度引擎<br/>36h 課表/休整日判定"]
+            CONF["<b>config.py</b><br/>Secrets & 跑者設定"]
+            UTIL["<b>utils.py</b><br/>ACWR / 配速換算 / 數據運算"]
+        end
+
+        subgraph G_DATA["📡 數據採集層 (Data Services)"]
+            direction TB
+            GARMIN["<b>garmin_service.py</b><br/>OAuth 免密登入 / 帳密回退<br/>活動歷程、分圈、HRV、RHR"]
+            WEATHER["<b>weather_service.py</b><br/>Open-Meteo 氣象 API<br/>GPS 座標活動當下精準溫濕度"]
+        end
     end
 
-    subgraph Core["⚙️ 主流程協調層 (Orchestrator)"]
-        MAIN["main.py<br/>(任務協調調度中心)"]
-        CONF["config.py<br/>(環境變數與跑者參數)"]
-        UTIL["utils.py<br/>(配速換算 / 心率統計 / 訊息淨化)"]
+    %% ================= 階段二：AI 推理、圖表與推播 =================
+    subgraph STAGE2["<b>【第二階段】AI 智慧診斷、3大獨立高清圖表與 Telegram 推播</b>"]
+        direction LR
+        subgraph G_AI["🧠 智慧推理層 (AI Coach)"]
+            direction TB
+            AI["<b>ai_service.py</b><br/>Gemini 2.5 / 2.0 Flash 備援<br/>自適應課表辨識<br/>7日微週期累積疲勞診斷"]
+        end
+
+        subgraph G_CHART["📊 專業遙測視覺化 (Charts)"]
+            direction TB
+            CHART["<b>chart_service.py</b><br/>Matplotlib 深色高科技風格<br/>3 張獨立高清大圖：<br/>• 📈 ACWR 負荷比量規圖<br/>• 💓 Z1~Z5 心率區間甜甜圈<br/>• ⚡ 各公里配速心率雙軸走勢"]
+        end
+
+        subgraph G_PUSH["📲 雙軌推播層 (Notification)"]
+            direction TB
+            NOTIFY["<b>notifier.py</b><br/>HTML 等寬分圈表格容錯推播<br/>sendPhoto 高清圖片逐張發送"]
+            TG[("<b>Telegram 跑者手機</b><br/>💬 結構化深度日報<br/>🖼️ 3 張滿版大圖無壓縮呈現")]
+        end
     end
 
-    subgraph DataCollection["📡 數據採集層 (Data Services)"]
-        GARMIN["garmin_service.py<br/>(Garmin Connect API)"]
-        WEATHER["weather_service.py<br/>(Open-Meteo API)"]
-    end
+    %% 外部雲端節點
+    GARMIN_CLOUD[("⌚ Garmin Connect 雲端")]
+    METEO_CLOUD[("🌤️ Open-Meteo 雲端測站")]
+    GEMINI_CLOUD[("✨ Google Gemini AI 雲端")]
 
-    subgraph CloudServices["🌐 外部資料來源 (External Providers)"]
-        GARMIN_CLOUD[("⌚ Garmin Connect 雲端<br/>(活動、分圈、動態、心率區間)")]
-        METEO_CLOUD[("🌤️ Open-Meteo 氣象服務<br/>(歷史氣溫、濕度、體感)")]
-    end
-
-    subgraph Analysis["🧠 智慧推理層 (AI Service)"]
-        AI["ai_service.py<br/>(動態模型掃描與 503 降級容錯)"]
-        GEMINI[("✨ Google Gemini Flash<br/>(自適應課表辨識 & 7日週期評估)")]
-    end
-
-    subgraph Push["📲 通知推播層 (Notification)"]
-        NOTIFIER["notifier.py<br/>(長訊息自動分段推播)"]
-        TELEGRAM[("💬 Telegram Bot<br/>(跑者即時接收診斷報表)")]
-    end
-
-    %% 流程關係
+    %% 連線關聯
     GHA -->|1. 啟動環境| MAIN
-    MAIN -.->|讀取設定| CONF
-    MAIN -.->|輔助工具| UTIL
+    CACHE <-->|還原 / 更新 Token| GARMIN
+    CONF -.->|注入參數| MAIN
+    UTIL -.->|輔助計算| MAIN
 
-    MAIN -->|2. 調用活動紀錄| GARMIN
-    GARMIN <-->|抓取活動 & 分圈 & 區間| GARMIN_CLOUD
+    MAIN -->|2. 調閱近28天歷程與生理| GARMIN
+    GARMIN <-->|API 查詢| GARMIN_CLOUD
 
     MAIN -->|3. GPS座標與時間查詢| WEATHER
-    WEATHER <-->|查詢歷史溫濕度| METEO_CLOUD
+    WEATHER <-->|歷史天候| METEO_CLOUD
 
-    MAIN -->|4. 彙整 7 筆歷程與最新數據| AI
-    AI <-->|多模型容錯調用| GEMINI
+    MAIN -->|4. 彙整全維度數據| AI
+    AI <-->|多模型容錯調用| GEMINI_CLOUD
 
-    MAIN -->|5. 淨化文字與組裝結果| NOTIFIER
-    NOTIFIER -->|推播分析報表| TELEGRAM
+    MAIN -->|5. 產出 3 張獨立大圖| CHART
+    STAGE1 ==>|完成數據採集| STAGE2
 
-    classDef highlight fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
-    classDef cloud fill:#fff3e0,stroke:#f57c00,stroke-width:1px;
-    class MAIN,AI,GARMIN,WEATHER,NOTIFIER highlight;
-    class GARMIN_CLOUD,METEO_CLOUD,GEMINI,TELEGRAM cloud;
+    CHART -->|傳遞圖檔清單| NOTIFY
+    AI -->|傳遞教練診斷| NOTIFY
+    NOTIFY -->|6. 逐項推播手機| TG
+
+    %% 高對比、大字體樣式定義 (深色高對比底色 + 純白粗體字，保證在 GitHub 淺色/深色模式下皆極度清晰)
+    classDef triggerNode fill:#1e1b4b,stroke:#818cf8,stroke-width:2.5px,color:#ffffff;
+    classDef coreNode fill:#0f172a,stroke:#38bdf8,stroke-width:2.5px,color:#ffffff;
+    classDef dataNode fill:#064e3b,stroke:#34d399,stroke-width:2.5px,color:#ffffff;
+    classDef aiNode fill:#3b0764,stroke:#c084fc,stroke-width:2.5px,color:#ffffff;
+    classDef chartNode fill:#431407,stroke:#fb923c,stroke-width:2.5px,color:#ffffff;
+    classDef pushNode fill:#083344,stroke:#22d3ee,stroke-width:2.5px,color:#ffffff;
+    classDef cloudNode fill:#1e293b,stroke:#94a3b8,stroke-width:2px,color:#ffffff;
+
+    class GHA,CACHE triggerNode;
+    class MAIN,CONF,UTIL coreNode;
+    class GARMIN,WEATHER dataNode;
+    class AI aiNode;
+    class CHART chartNode;
+    class NOTIFY,TG pushNode;
+    class GARMIN_CLOUD,METEO_CLOUD,GEMINI_CLOUD cloudNode;
+
+    style STAGE1 fill:#0f141c,stroke:#334155,stroke-width:2px,color:#38bdf8
+    style STAGE2 fill:#0f141c,stroke:#334155,stroke-width:2px,color:#38bdf8
+    style G_TRIG fill:#161f2e,stroke:#475569,stroke-width:1px,color:#e2e8f0
+    style G_CORE fill:#161f2e,stroke:#475569,stroke-width:1px,color:#e2e8f0
+    style G_DATA fill:#161f2e,stroke:#475569,stroke-width:1px,color:#e2e8f0
+    style G_AI fill:#161f2e,stroke:#475569,stroke-width:1px,color:#e2e8f0
+    style G_CHART fill:#161f2e,stroke:#475569,stroke-width:1px,color:#e2e8f0
+    style G_PUSH fill:#161f2e,stroke:#475569,stroke-width:1px,color:#e2e8f0
 ```
+</details>
 
 ---
 
