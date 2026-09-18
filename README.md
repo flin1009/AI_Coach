@@ -152,20 +152,35 @@ flowchart TB
   * 🟡 **疲勞警戒期 (Caution, 1.3 ~ 1.5)**：急劇疲勞快速累積，提醒跑者密切監控肌肉狀態。
   * 🔴 **高受傷風險區 (Danger Zone, ≥ 1.5)**：過度訓練預警，AI 教練主動介入要求減量。
 
-### 5. 🩺 智慧生理指標優雅降級 (Graceful Degradation)
+### 5. 🎯 丹尼爾博士 VDOT 跑力與五大訓練靶心配速 (Jack Daniels' Formula)
+* 系統根據跑者全馬 PB 自動套用 **Daniels & Gilbert (1979) 攝氧量阻力公式**，計算當前精準 **VDOT 跑力值**。
+* 自動推算並輸出精確到「分:秒/km」的五大訓練靶心配速指針：
+  * 🟢 **E 輕鬆/長距離跑配速 (Easy)**：Zone 2 有氧基礎、主動恢復跑與 LSD 巡航區間。
+  * 🔵 **M 馬拉松目標配速 (Marathon)**：比賽巡航節奏與專項配速體感建立。
+  * 🟡 **T 乳酸閾值/節奏跑配速 (Threshold)**：提升抗乳酸閾限與速耐力。
+  * 🟠 **I 最大攝氧量間歇配速 (Interval)**：刺激心肺極限容量 (VO2Max)。
+  * 🔴 **R 重複衝刺配速 (Repetition)**：神經肌肉速度協調與跑姿經濟性強化。
+* **AI 教練精準開立課表**：次日課表建議不再僅是籠統的文字描述，而是直接指定「*建議進行 6~8km E 配速跑 (5:45~6:15/km)*」，訓練目標極為具體。
+
+### 6. 💓 前後半程有氧解耦率 (Aerobic Decoupling / Decoupling %)
+* 引入運動生理學權威 Joe Friel 之 **效率因子 EF (Efficiency Factor = 功率或速度 / 心率)** 模型。
+* 將長跑活動切分為前半程（前 50% 距離）與後半程（後 50% 距離），精準計算心率漂移率：
+  $$\text{Decoupling (\%)} = \frac{\text{EF}_{\text{前半}} - \text{EF}_{\text{後半}}}{\text{EF}_{\text{前半}}} \times 100\%$$
+* **四大科學耐力等級判定**：
+  * 🟢 **< 3.0% (極度穩定 Elite Aerobic Base)**：有氧底層堅固，幾乎無心率漂移。
+  * 🔵 **3.0% ~ 5.0% (最佳適應 Well-Trained)**：心率與配速平衡良好，具備優秀馬拉松耐力。
+  * 🟡 **5.1% ~ 8.0% (輕度漂移 Moderate Drift)**：後半程出現散熱或肌耐力衰退，提醒加強電解質與水分補充。
+  * 🔴 **> 8.0% (顯著解耦 High Drift)**：體能超載、配速過快或外部熱壓力過大，AI 教練主動提出預警。
+* **走勢圖視覺化**：於各公里配速心率雙軸走勢圖自動標繪半程分割線 (Halfway Split) 與解耦漂移數據徽章。
+
+### 7. 🩺 智慧生理指標優雅降級 (Graceful Degradation)
 * 自動安全讀取夜間 **HRV 心率變異度**（前夜平均、7日基準線、平衡狀態）、**靜止心率 (RHR)** 與 **身體電量**。
 * **零干擾防護**：若手錶未同步或未配戴入睡，系統自動無縫略過該區塊，絕不拋錯中斷；有數據時無縫融入 AI 提示詞評估中樞神經系統修復度。
 
-### 6. 📊 專業遙測圖表與 Telegram 智慧推播
+### 8. 📊 專業遙測圖表與 Telegram 智慧推播
 * **獨立高清晰度圖表 (Standalone Telemetry Charts)**：告別多圖擠在一起排版擁擠的困擾，系統將各項核心指標獨立繪製為大尺寸圖表（包含 **ACWR 急性與慢性負荷指標圖**、**Z1~Z5 心率區間環圈甜甜圈圖**、**各公里配速心率雙軸走勢圖**），透過 Telegram 逐張推播，手機端滿版呈現、字體大且數據清晰易讀。
-* **分圈等寬表格 (Monospace)**：逐公里數據以 `<pre>` 標籤排版，在手機端呈現整齊不折行的專業表格。
+* **純文字清晰分圈明細**：逐公里配速、心率、海拔上升、步頻與總時間以條理分明之格式排版，保證在所有裝置上完美相容。
 * **LaTeX 符號淨化**：自動過濾 AI 產生的 `$\rightarrow$` 數學符號為標準箭頭 `→`。
-
-### 7. 🔑 Garmin OAuth Token 快取與 GitHub Actions 跨排程持久化
-* **防限流與秒速連線**：優先讀取本地已保存之 OAuth Token（預設 `~/.garminconnect`，亦支援 `GARMINTOKENS` 自訂路徑）直接恢復連線，免去重複執行帳密 SSO 驗證流程，大幅降低觸發 Garmin 伺服器 Cloudflare 防爬蟲或 429 Too Many Requests 阻擋之風險。
-* **智慧安全回退**：若無快取或 Token 過期，自動退回使用帳號密碼登入，並重新快取新 Token。
-* **GitHub Actions 雲端持久化**：工作流程整合 `actions/cache@v4`，每次排程執行完畢自動將 Token 快取至 GitHub 雲端，隔日自動還原使用。
-* **資安防護**：`.gitignore` 預設排除 `.garminconnect/` 與 Token 相關 JSON 檔案，防止個人憑證外洩。
 
 ---
 
@@ -175,16 +190,16 @@ flowchart TB
 AI_Coach/
 ├── .github/
 │   └── workflows/
-│       └── daily_task.yml       # GitHub Actions 每日排程、actions/cache Token 雲端快取與環境依賴
+│       └── daily_task.yml       # GitHub Actions 每日排程與自動化環境
 ├── config.py                    # 集中管理 Secrets 環境變數與跑者個人化參數
-├── utils.py                     # 配速換算、ACWR 計算、心率統計、分圈表格與文字淨化工具
-├── weather_service.py           # Open-Meteo 氣象 API 連線與數據擷取模組
-├── chart_service.py             # 專業運動遙測儀表板圖表繪製模組 (Matplotlib 深色風格)
-├── notifier.py                  # Telegram 機器人文字訊息與圖表圖片推播
-├── garmin_service.py            # Garmin Connect 登入驗證 (Token 本地快取)、活動、生理恢復解析
-├── ai_service.py                # Gemini AI 模型動態掃描、503 降級備援與教練 Prompt 封裝
-├── main.py                      # 系統主調度核心（GitHub Actions 執行入口點）
-├── .gitignore                   # Git 排除清單（忽略 Token 憑證、快取、虛擬環境與本機記錄）
+├── utils.py                     # VDOT 跑力、有氧解耦率、ACWR、配速與生理恢復運算工具
+├── weather_service.py           # Open-Meteo 氣象 API 連線與歷史小時氣候模組
+├── chart_service.py             # 專業運動遙測儀表板圖表繪製模組 (Matplotlib 深色高科技風格)
+├── notifier.py                  # Telegram 機器人純文字訊息與高清圖檔推播
+├── garmin_service.py            # Garmin Connect 登入驗證、活動歷程、分圈與每日生理恢復調閱
+├── ai_service.py                # Gemini AI 模型動態掃描、503 降級備援與專業教練 Prompt 封裝
+├── main.py                      # 系統主協調調度核心引擎（GitHub Actions 執行入口點）
+├── .gitignore                   # Git 排除清單（忽略敏感檔案、快取、虛擬環境與本機記錄）
 └── README.md                    # 專案詳細介紹與架構文檔
 ```
 

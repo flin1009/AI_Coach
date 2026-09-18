@@ -21,7 +21,11 @@ from utils import (
     check_activity_recency,
     calculate_weekly_stats,
     calculate_acwr,
-    format_recovery_metrics
+    format_recovery_metrics,
+    calculate_vdot_paces,
+    format_vdot_paces,
+    calculate_aerobic_decoupling,
+    format_aerobic_decoupling
 )
 from weather_service import get_open_meteo_weather
 from notifier import send_telegram, send_telegram_photo
@@ -61,6 +65,11 @@ def run_main_task():
         acwr_data = calculate_acwr(extended_activities if extended_activities else activities)
         print(f"📈 ACWR 負荷比計算: {acwr_data['acwr']} ({acwr_data['status_desc']}) | 急性: {acwr_data['acute_load']} | 慢性: {acwr_data['chronic_load']}")
 
+        # 計算丹尼爾 VDOT 跑力與五大訓練靶心配速
+        vdot_data = calculate_vdot_paces(RUNNER_PB)
+        vdot_str = format_vdot_paces(vdot_data)
+        print(f"🎯 丹尼爾 VDOT 跑力計算: VDOT {vdot_data['vdot']} | E: {vdot_data['e_pace_fast']}~{vdot_data['e_pace_slow']} | M: {vdot_data['m_pace']} | T: {vdot_data['t_pace']}")
+
         recovery_metrics = fetch_daily_recovery_metrics(client_garmin)
         recovery_str = format_recovery_metrics(recovery_metrics)
         if recovery_str:
@@ -88,6 +97,10 @@ def run_main_task():
             report.append(f"背景：{RUNNER_BIRTH_YEAR}年生 | PB {RUNNER_PB} | Zone 2: {ZONE2_MAX_HR}bpm")
             report.append(f"狀態：今日無新運動紀錄 (前次訓練於 {time_ago_str})")
             report.append("=" * 30)
+
+            if vdot_str:
+                report.append(vdot_str)
+                report.append("-" * 30)
 
             if recovery_str:
                 report.append(recovery_str)
@@ -138,6 +151,10 @@ def run_main_task():
         report.append(f"📊 【{RUNNER_NAME} 數據分析報表 - {best_model}】")
         report.append(f"背景：{RUNNER_BIRTH_YEAR}年生 | PB {RUNNER_PB} | Zone 2: {ZONE2_MAX_HR}bpm")
         report.append("=" * 30)
+
+        if vdot_str:
+            report.append(vdot_str)
+            report.append("-" * 30)
 
         if recovery_str:
             report.append(recovery_str)
@@ -261,11 +278,19 @@ def run_main_task():
 
         entry += f"\n🌤️ 環境氣象: {om_weather_str}"
     
-        # 分圈細節 (純文字排版)
+        # 分圈細節 (純文字排版) 與 前後半程有氧解耦率
         laps = fetch_activity_splits(client_garmin, a_id)
+        decoupling_data = None
         if laps:
             laps_str = format_laps_table(laps)
             entry += f"\n{laps_str}"
+
+            # 計算有氧解耦率 (Decoupling %)
+            decoupling_data = calculate_aerobic_decoupling(laps)
+            if decoupling_data:
+                decoupling_str = format_aerobic_decoupling(decoupling_data)
+                entry += f"\n{decoupling_str}"
+                print(f"💓 有氧解耦率計算完成: {decoupling_data['decoupling_pct']}% ({decoupling_data['status_desc']})")
         
         report.append(entry)
         report.append("=" * 30)
@@ -288,7 +313,7 @@ def run_main_task():
 
         # 8. 生成並推播視覺化遙測圖表 (各圖表獨立分開，大字體高清晰)
         print("📊 正在產出專業運動遙測獨立圖表...")
-        charts = generate_all_telemetry_charts(latest_act, laps, acwr_data, hr_zones, output_dir=LOCAL_SAVE_DIR)
+        charts = generate_all_telemetry_charts(latest_act, laps, acwr_data, hr_zones, decoupling_data=decoupling_data, output_dir=LOCAL_SAVE_DIR)
         for c_path, c_caption in charts:
             send_telegram_photo(c_path, caption=c_caption)
             time.sleep(0.5)

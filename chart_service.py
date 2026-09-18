@@ -220,13 +220,21 @@ def generate_hr_zones_chart(hr_zones_raw, save_path="hr_zones_chart.png"):
         return False
 
 
-def generate_laps_trend_chart(laps, save_path="laps_trend_chart.png"):
-    """繪製獨立分圈配速與心率走勢圖 (Dual-axis Lap Pace & HR Trend，配速 M:SS 軸格式化)"""
+def generate_laps_trend_chart(laps, save_path="laps_trend_chart.png", decoupling_data=None):
+    """繪製獨立分圈配速與心率走勢圖 (Dual-axis Lap Pace & HR Trend，配速 M:SS 軸格式化，支援半程分割與有氧解耦率標註)"""
     try:
         os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
         fig = plt.figure(figsize=(10, 5.5), facecolor=BG_DARK)
-        fig.suptitle('LAP-BY-LAP PACE & HEART RATE TREND', 
-                     fontsize=15, fontweight='bold', color=TEXT_COLOR, y=0.96)
+        
+        # 標題 (若有解耦數據，副標顯示解耦數值與評級)
+        if decoupling_data:
+            d_pct = decoupling_data.get('decoupling_pct', 0)
+            sign = "+" if d_pct > 0 else ""
+            fig.suptitle(f'LAP-BY-LAP PACE & HEART RATE TREND (Decoupling: {sign}{d_pct}%)', 
+                         fontsize=15, fontweight='bold', color=TEXT_COLOR, y=0.96)
+        else:
+            fig.suptitle('LAP-BY-LAP PACE & HEART RATE TREND', 
+                         fontsize=15, fontweight='bold', color=TEXT_COLOR, y=0.96)
 
         if not laps or len(laps) <= 1:
             ax = fig.add_subplot(1, 1, 1, facecolor=PANEL_BG)
@@ -274,6 +282,23 @@ def generate_laps_trend_chart(laps, save_path="laps_trend_chart.png"):
         ax_hr.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=6))
         ax_hr.tick_params(axis='y', colors=RED_ACCENT, labelsize=10)
 
+        # 若有解耦數據，繪製半程分割虛線 (圖表使用純英文標籤避免 Linux 字型警告)
+        if decoupling_data and len(laps) >= 4:
+            mid_x = (len(laps) + 1) / 2.0
+            ax_pace.axvline(x=mid_x, color=PURPLE_ACCENT, linestyle=':', lw=1.8, alpha=0.8, zorder=2)
+            d_pct = decoupling_data.get('decoupling_pct', 0)
+            sign = "+" if d_pct > 0 else ""
+            status_en_map = {
+                'excellent': 'Elite Base',
+                'optimal': 'Well-Trained',
+                'warning': 'Moderate Drift',
+                'danger': 'High Drift'
+            }
+            status_en = status_en_map.get(decoupling_data.get('status_zone', ''), 'Stable')
+            ax_pace.text(mid_x + 0.1, ax_pace.get_ylim()[0], f' Halfway Split\n (Drift: {sign}{d_pct}% {status_en})',
+                         color=PURPLE_ACCENT, fontsize=8.5, fontweight='bold', va='bottom', ha='left',
+                         bbox=dict(boxstyle='round,pad=0.3', facecolor=CARD_BG, edgecolor=PURPLE_ACCENT, alpha=0.85, lw=1))
+
         # X 軸配置
         ax_pace.set_xlabel('Lap Index (km)', color=TEXT_COLOR, fontsize=11, fontweight='bold')
         ax_pace.set_xticks(lap_nums)
@@ -305,7 +330,7 @@ def generate_laps_trend_chart(laps, save_path="laps_trend_chart.png"):
         return False
 
 
-def generate_all_telemetry_charts(latest_act, laps, acwr_data, hr_zones_raw, output_dir="."):
+def generate_all_telemetry_charts(latest_act, laps, acwr_data, hr_zones_raw, decoupling_data=None, output_dir="."):
     """生成所有個別獨立的遙測圖表，回傳 [(檔案路徑, Telegram 圖說 Caption)] 清單。
     每個圖表單獨繪製，字體更大、排版寬敞、在手機 Telegram 瀏覽時清晰無比！
     """
@@ -328,8 +353,13 @@ def generate_all_telemetry_charts(latest_act, laps, acwr_data, hr_zones_raw, out
     # 3. 分圈配速與心率走勢圖 (僅在有 2 圈以上分圈數據時產出)
     if laps and len(laps) > 1:
         laps_file = os.path.join(output_dir, "laps_trend_chart.png")
-        if generate_laps_trend_chart(laps, laps_file):
-            caption = f"⚡ 【各公里配速與心率走勢】\n共 {len(laps)} 公里分圈穩定度與心率漂移分析"
+        if generate_laps_trend_chart(laps, laps_file, decoupling_data=decoupling_data):
+            if decoupling_data:
+                d_pct = decoupling_data.get('decoupling_pct', 0)
+                sign = "+" if d_pct > 0 else ""
+                caption = f"⚡ 【各公里配速與心率走勢】\n共 {len(laps)} 公里 | 有氧解耦率: {sign}{d_pct}% ({decoupling_data.get('status_desc', '')})"
+            else:
+                caption = f"⚡ 【各公里配速與心率走勢】\n共 {len(laps)} 公里分圈穩定度與心率漂移分析"
             charts.append((laps_file, caption))
 
     return charts

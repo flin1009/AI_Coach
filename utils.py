@@ -1,5 +1,6 @@
 import re
 import datetime
+import math
 
 def format_pace(speed_mps):
     """將公尺/秒轉換為每公里配速 (分:秒)"""
@@ -265,4 +266,191 @@ def format_recovery_metrics(recovery):
         lines.append(f"  - {' | '.join(parts_2)}")
         
     return "\n".join(lines) if len(lines) > 1 else ""
+
+# --- 丹尼爾博士 VDOT 跑力與靶心配速系統 (Jack Daniels' Running Formula) ---
+
+def parse_marathon_pb(pb_str):
+    """解析馬拉松成績字串 (支援 H:MM 與 H:MM:SS) 為總分鐘數"""
+    if not pb_str:
+        return 225.0
+    try:
+        parts = [int(p) for p in pb_str.strip().split(":")]
+        if len(parts) == 2:
+            return parts[0] * 60.0 + parts[1]
+        elif len(parts) == 3:
+            return parts[0] * 60.0 + parts[1] + parts[2] / 60.0
+    except Exception:
+        pass
+    return 225.0
+
+def calculate_vdot(distance_m, time_minutes):
+    """依據 Daniels & Gilbert (1979) 攝氧量阻力公式計算 VDOT 跑力值"""
+    if time_minutes <= 0 or distance_m <= 0:
+        return 40.0
+    v = distance_m / time_minutes  # m/min
+    vo2 = -4.60 + 0.182258 * v + 0.000104 * (v ** 2)
+    p = 0.8 + 0.1894393 * math.exp(-0.012778 * time_minutes) + 0.2989558 * math.exp(-0.1932605 * time_minutes)
+    return vo2 / p
+
+def vdot_to_pace(vdot, intensity_fraction):
+    """依指定 VDOT 強度百分比反解配速 (分:秒/km)"""
+    target_vo2 = vdot * intensity_fraction
+    a = 0.000104
+    b = 0.182258
+    c = -(4.60 + target_vo2)
+    discriminant = b ** 2 - 4 * a * c
+    if discriminant < 0:
+        return "N/A"
+    v = (-b + math.sqrt(discriminant)) / (2 * a)  # m/min
+    if v <= 0:
+        return "N/A"
+    sec_per_km = 60000.0 / v
+    m = int(sec_per_km // 60)
+    s = int(round(sec_per_km % 60))
+    if s == 60:
+        m += 1
+        s = 0
+    return f"{m}:{s:02d}"
+
+def calculate_vdot_paces(pb_str):
+    """計算跑者全馬 PB 之 VDOT 跑力及五大丹尼爾訓練靶心配速 (E/M/T/I/R)"""
+    time_min = parse_marathon_pb(pb_str)
+    vdot = calculate_vdot(42195, time_min)
+    return {
+        "vdot": round(vdot, 1),
+        "e_pace_fast": vdot_to_pace(vdot, 0.74),  # 有氧輕鬆跑上限 (~74% VDOT)
+        "e_pace_slow": vdot_to_pace(vdot, 0.65),  # 有氧輕鬆跑下限 (~65% VDOT)
+        "m_pace": vdot_to_pace(vdot, 0.80),       # 馬拉松配速 (~80% VDOT)
+        "t_pace": vdot_to_pace(vdot, 0.88),       # 乳酸閾值/節奏 (~88% VDOT)
+        "i_pace": vdot_to_pace(vdot, 0.98),       # 最大攝氧量間歇 (~98% VDOT)
+        "r_pace": vdot_to_pace(vdot, 1.08),       # 重複衝刺/神經速度 (~108% VDOT)
+    }
+
+def format_vdot_paces(vdot_data):
+    """格式化 VDOT 五大靶心配速清單"""
+    if not vdot_data:
+        return ""
+    lines = [
+        f"🎯 【丹尼爾 VDOT 靶心配速指針 (VDOT {vdot_data['vdot']})】",
+        f"  - E 輕鬆/長距離跑: {vdot_data['e_pace_fast']} ~ {vdot_data['e_pace_slow']} /km (Zone 2 有氧基礎、LSD、恢復)",
+        f"  - M 馬拉松目標配速: {vdot_data['m_pace']} /km (賽事巡航配速體感)",
+        f"  - T 乳酸閾值/節奏: {vdot_data['t_pace']} /km (提升抗乳酸閾值與速耐力)",
+        f"  - I 間歇刺激 (VO2Max): {vdot_data['i_pace']} /km (刺激心肺最大攝氧量)",
+        f"  - R 重複衝刺 (神經速度): {vdot_data['r_pace']} /km (提升跑姿經濟性與無氧爆發)"
+    ]
+    return "\n".join(lines)
+
+# --- 前後半程有氧解耦率 (Aerobic Decoupling / Decoupling %) ---
+
+def calculate_aerobic_decoupling(laps):
+    """計算前半程 vs 後半程之有氧解耦率 (Decoupling %)
+    - 採用 Joe Friel 效率因子 EF (Efficiency Factor) 公式：
+      有功率時: EF = 平均功率 (W) / 平均心率 (bpm)
+      無功率時: EF = 配速速度 (m/min) / 平均心率 (bpm)
+    - Decoupling % = ((EF_前半 - EF_後半) / EF_前半) * 100%
+    - 評級標準：
+      < 3.0%: 極度穩定 (Elite Aerobic Base, 幾無心率漂移)
+      3.0% ~ 5.0%: 最佳適應 (Well-Trained, 心率配速穩定平衡)
+      5.1% ~ 8.0%: 輕度漂移 (Moderate Drift, 需留意補水散熱)
+      > 8.0%: 顯著解耦 (High Drift, 體能超載或嚴重脫水)
+    """
+    if not laps or len(laps) < 2:
+        return None
+
+    total_dist = sum(lap.get("distance", 0) for lap in laps)
+    total_dur = sum(lap.get("duration", 0) for lap in laps)
+
+    # 至少 3 公里且總耗時大於 15 分鐘，數據方具統計學診斷意義
+    if total_dist < 3000 and total_dur < 900:
+        return None
+
+    half_dist = total_dist / 2.0
+    accum_dist = 0.0
+
+    first_half_laps = []
+    second_half_laps = []
+
+    for lap in laps:
+        d = lap.get("distance", 0)
+        if accum_dist + d / 2.0 <= half_dist:
+            first_half_laps.append(lap)
+        else:
+            second_half_laps.append(lap)
+        accum_dist += d
+
+    if not first_half_laps or not second_half_laps:
+        mid = len(laps) // 2
+        first_half_laps = laps[:mid]
+        second_half_laps = laps[mid:]
+
+    def get_half_ef(half_laps):
+        total_d = sum(l.get("distance", 0) for l in half_laps)
+        total_t = sum(l.get("duration", 0) for l in half_laps)
+        if total_t <= 0 or total_d <= 0:
+            return None, 0, 0, False
+
+        avg_speed = total_d / total_t  # m/s
+        total_hr_dur = sum(l.get("averageHR", 0) * l.get("duration", 0) for l in half_laps if l.get("averageHR"))
+        hr_dur_weight = sum(l.get("duration", 0) for l in half_laps if l.get("averageHR"))
+        avg_hr = (total_hr_dur / hr_dur_weight) if hr_dur_weight > 0 else 0
+
+        has_power = any(l.get("avgPower") for l in half_laps)
+        if has_power:
+            p_dur = sum(l.get("avgPower", 0) * l.get("duration", 0) for l in half_laps if l.get("avgPower"))
+            p_weight = sum(l.get("duration", 0) for l in half_laps if l.get("avgPower"))
+            avg_p = (p_dur / p_weight) if p_weight > 0 else 0
+            ef = avg_p / avg_hr if avg_hr > 0 else 0
+            return ef, avg_p, avg_hr, True
+        else:
+            speed_mpm = avg_speed * 60.0
+            ef = speed_mpm / avg_hr if avg_hr > 0 else 0
+            return ef, avg_speed, avg_hr, False
+
+    ef1, val1, hr1, is_pwr = get_half_ef(first_half_laps)
+    ef2, val2, hr2, _ = get_half_ef(second_half_laps)
+
+    if not ef1 or not ef2 or ef1 <= 0:
+        return None
+
+    decoupling_pct = ((ef1 - ef2) / ef1) * 100.0
+
+    if decoupling_pct < 3.0:
+        status_desc = "極度穩定 (Elite Aerobic Base, 幾無心率漂移)"
+        status_zone = "excellent"
+    elif decoupling_pct <= 5.0:
+        status_desc = "最佳適應 (Well-Trained, 心率配速穩定平衡)"
+        status_zone = "optimal"
+    elif decoupling_pct <= 8.0:
+        status_desc = "輕度漂移 (Moderate Drift, 需留意補水散熱)"
+        status_zone = "warning"
+    else:
+        status_desc = "顯著解耦 (High Drift, 體能超載或嚴重脫水)"
+        status_zone = "danger"
+
+    return {
+        "decoupling_pct": round(decoupling_pct, 1),
+        "ef1": round(ef1, 2),
+        "ef2": round(ef2, 2),
+        "hr1": int(round(hr1)),
+        "hr2": int(round(hr2)),
+        "val1": round(val1, 1),
+        "val2": round(val2, 1),
+        "is_power": is_pwr,
+        "status_desc": status_desc,
+        "status_zone": status_zone
+    }
+
+def format_aerobic_decoupling(decoupling_data):
+    """將有氧解耦率格式化為易讀報告文字"""
+    if not decoupling_data:
+        return ""
+    d_pct = decoupling_data["decoupling_pct"]
+    sign = "+" if d_pct > 0 else ""
+    lines = [
+        "💓 【有氧解耦率 (Aerobic Decoupling / 前後半程心率漂移)】",
+        f"  - 前半程 vs 後半程心率: {decoupling_data['hr1']} bpm → {decoupling_data['hr2']} bpm",
+        f"  - 解耦漂移率: {sign}{d_pct}% ({decoupling_data['status_desc']})"
+    ]
+    return "\n".join(lines)
+
 
