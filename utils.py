@@ -327,18 +327,17 @@ def calculate_vdot_paces(pb_str):
     }
 
 def format_vdot_paces(vdot_data):
-    """格式化 VDOT 五大靶心配速清單"""
+    """格式化 VDOT 靶心配速為精簡單行摘要"""
     if not vdot_data:
         return ""
-    lines = [
-        f"🎯 【丹尼爾 VDOT 靶心配速指針 (VDOT {vdot_data['vdot']})】",
-        f"  - E 輕鬆/長距離跑: {vdot_data['e_pace_fast']} ~ {vdot_data['e_pace_slow']} /km (Zone 2 有氧基礎、LSD、恢復)",
-        f"  - M 馬拉松目標配速: {vdot_data['m_pace']} /km (賽事巡航配速體感)",
-        f"  - T 乳酸閾值/節奏: {vdot_data['t_pace']} /km (提升抗乳酸閾值與速耐力)",
-        f"  - I 間歇刺激 (VO2Max): {vdot_data['i_pace']} /km (刺激心肺最大攝氧量)",
-        f"  - R 重複衝刺 (神經速度): {vdot_data['r_pace']} /km (提升跑姿經濟性與無氧爆發)"
-    ]
-    return "\n".join(lines)
+    return (
+        f"🎯 【VDOT {vdot_data['vdot']} 靶心配速】"
+        f"E {vdot_data['e_pace_fast']}~{vdot_data['e_pace_slow']} | "
+        f"M {vdot_data['m_pace']} | "
+        f"T {vdot_data['t_pace']} | "
+        f"I {vdot_data['i_pace']} | "
+        f"R {vdot_data['r_pace']}"
+    )
 
 # --- 前後半程有氧解耦率 (Aerobic Decoupling / Decoupling %) ---
 

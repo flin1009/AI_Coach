@@ -43,7 +43,7 @@ from ai_service import (
     generate_coach_advice,
     generate_rest_day_advice
 )
-from chart_service import generate_telemetry_chart, generate_all_telemetry_charts
+from chart_service import generate_all_telemetry_charts
 
 def run_main_task():
     # 1. 初始化 AI 客戶端與模型
@@ -77,7 +77,6 @@ def run_main_task():
         else:
             print("ℹ️ 今日無生理恢復數據 (手錶未同步或未配戴入睡)，優雅略過此區塊。")
 
-        chart_path = os.path.join(LOCAL_SAVE_DIR, "telemetry_dashboard.png")
 
         latest_act = activities[0]
         start_time_str = latest_act.get('startTimeLocal', '')
