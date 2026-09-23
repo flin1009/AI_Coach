@@ -167,11 +167,13 @@ flowchart TB
 * 將長跑活動切分為前半程（前 50% 距離）與後半程（後 50% 距離），精準計算心率漂移率：
 
 $$
-\text{Decoupling (\%)} = \frac{\text{EF}_1 - \text{EF}_2}{\text{EF}_1} \times 100\%
+\text{Decoupling (\\%)} = \frac{\text{EF}_1 - \text{EF}_2}{\text{EF}_1} \times 100\\%
 $$
 
-  * $\text{EF}_1$：前半程效率因子（$\text{速度} / \text{心率}$ 或 $\text{功率} / \text{心率}$）
-  * $\text{EF}_2$：後半程效率因子（$\text{速度} / \text{心率}$ 或 $\text{功率} / \text{心率}$）
+* **參數定義**：
+  * $\text{EF}_1$：前半程效率因子（有功率時為 `功率 (W) / 心率 (bpm)`，無功率時為 `速度 (m/min) / 心率 (bpm)`）
+  * $\text{EF}_2$：後半程效率因子（計算方式同前半程）
+
 * **四大科學耐力等級判定**：
   * 🟢 **< 3.0% (極度穩定 Elite Aerobic Base)**：有氧底層堅固，幾乎無心率漂移。
   * 🔵 **3.0% ~ 5.0% (最佳適應 Well-Trained)**：心率與配速平衡良好，具備優秀馬拉松耐力。
