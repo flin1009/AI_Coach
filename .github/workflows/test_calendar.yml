@@ -1,0 +1,27 @@
+name: Test Garmin Calendar Events
+
+on:
+  workflow_dispatch: # 允許在 GitHub 頁面手動點擊按鈕觸發測試
+
+jobs:
+  test-calendar:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install requests garminconnect
+
+      - name: Execute Calendar Test Script
+        env:
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PWD: ${{ secrets.GARMIN_PWD }}
+        run: python test_garmin_calendar.py
