@@ -6,7 +6,7 @@
 [![Google Gemini](https://img.shields.io/badge/Google_Gemini-Flash_AI-orange.svg)](https://ai.google.dev/)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-Bot_Push-24A1DE.svg)](https://telegram.org/)
 
-**AI Coach** 是一個專為耐力跑者打造的「全自動化智慧訓練診斷系統」。系統每日透過 **GitHub Actions** 定時排程自動執行，主動調閱 **Garmin Connect** 最新跑步與交叉訓練數據，整合 **Open-Meteo** 活動當下之精準歷史溫濕度氣象，並透過 **Google Gemini AI**（具備多模型自動降級備援技術）進行「7 筆微週期訓練負荷評估」與「最新課表全維度深層解剖」，最終將結構化的診斷報告與個人化訓練建議直接推播至跑者的 **Telegram**。
+**AI Coach** 是一個專為耐力跑者打造的「全自動化智慧訓練診斷系統」。系統每日透過 **GitHub Actions** 定時排程自動執行，主動調閱 **Garmin Connect** 最新跑步與交叉訓練數據、**三個月內目標賽事倒數**，整合 **Open-Meteo** 活動當下之精準歷史溫濕度氣象，並透過 **Google Gemini AI**（具備多模型自動降級備援技術）進行「7 筆微週期訓練負荷評估」、「目標賽事備賽週期分析」與「最新課表全維度深層解剖」，綜合開立包含精確配速與距離的「每日具體訓練菜單」，最終將結構化的診斷報告與個人化訓練建議直接推播至跑者的 **Telegram**。
 
 ---
 
@@ -35,12 +35,12 @@ flowchart TB
             direction TB
             MAIN["<b>main.py</b><br/>主流程調度引擎<br/>36h 課表/休整日判定"]
             CONF["<b>config.py</b><br/>Secrets & 跑者設定"]
-            UTIL["<b>utils.py</b><br/>ACWR / 配速換算 / 數據運算"]
+            UTIL["<b>utils.py</b><br/>ACWR / VDOT / 賽事倒數"]
         end
 
         subgraph G_DATA["📡 數據採集層 (Data Services)"]
             direction TB
-            GARMIN["<b>garmin_service.py</b><br/>Garmin Connect 帳密登入<br/>活動歷程、分圈、HRV、RHR"]
+            GARMIN["<b>garmin_service.py</b><br/>Garmin Connect 帳密登入<br/>活動歷程、分圈、HRV、<b>目標賽事 (去重)</b>"]
             WEATHER["<b>weather_service.py</b><br/>Open-Meteo 氣象 API<br/>GPS 座標活動當下精準溫濕度"]
         end
     end
@@ -50,7 +50,7 @@ flowchart TB
         direction LR
         subgraph G_AI["🧠 智慧推理層 (AI Coach)"]
             direction TB
-            AI["<b>ai_service.py</b><br/>Gemini 2.5 / 2.0 Flash 備援<br/>自適應課表辨識<br/>7日微週期累積疲勞診斷"]
+            AI["<b>ai_service.py</b><br/>Gemini 2.5 / 2.0 Flash 備援<br/>自適應課表與<b>備賽週期判讀</b><br/><b>綜合開立每日具體訓練菜單</b>"]
         end
 
         subgraph G_CHART["📊 專業遙測視覺化 (Charts)"]
@@ -61,7 +61,7 @@ flowchart TB
         subgraph G_PUSH["📲 雙軌推播層 (Notification)"]
             direction TB
             NOTIFY["<b>notifier.py</b><br/>純文字分圈數據推播<br/>sendPhoto 高清圖片逐張發送"]
-            TG[("<b>Telegram 跑者手機</b><br/>💬 結構化深度日報<br/>🖼️ 3 張滿版大圖無壓縮呈現")]
+            TG[("<b>Telegram 跑者手機</b><br/>💬 結構化深度日報 (含<b>賽事倒數</b>)<br/>🖼️ 3 張滿版大圖無壓縮呈現")]
         end
     end
 
@@ -75,20 +75,20 @@ flowchart TB
     CONF -.->|注入參數| MAIN
     UTIL -.->|輔助計算| MAIN
 
-    MAIN -->|2. 調閱近28天歷程與生理| GARMIN
+    MAIN -->|2. 調閱歷程、生理與目標賽事| GARMIN
     GARMIN <-->|API 查詢| GARMIN_CLOUD
 
     MAIN -->|3. GPS座標與時間查詢| WEATHER
     WEATHER <-->|歷史天候| METEO_CLOUD
 
-    MAIN -->|4. 彙整全維度數據| AI
+    MAIN -->|4. 彙整全維度數據與賽事| AI
     AI <-->|多模型容錯調用| GEMINI_CLOUD
 
     MAIN -->|5. 產出 3 張獨立大圖| CHART
     STAGE1 ==>|完成數據採集| STAGE2
 
     CHART -->|傳遞圖檔清單| NOTIFY
-    AI -->|傳遞教練診斷| NOTIFY
+    AI -->|傳遞教練診斷與每日菜單| NOTIFY
     NOTIFY -->|6. 逐項推播手機| TG
 
     %% 高對比、大字體樣式定義 (深色高對比底色 + 純白粗體字，保證在 GitHub 淺色/深色模式下皆極度清晰)
@@ -173,11 +173,17 @@ flowchart TB
   * 🔴 **> 8.0% (顯著解耦 High Drift)**：體能超載、配速過快或外部熱壓力過大，AI 教練主動提出預警。
 * **走勢圖視覺化**：於各公里配速心率雙軸走勢圖自動標繪半程分割線 (Halfway Split) 與解耦漂移數據徽章。
 
-### 7. 🩺 智慧生理指標優雅降級 (Graceful Degradation)
+### 7. 🏆 未來三個月目標賽事倒數與 AI 每日訓練菜單 (Race Target & Daily Workout Menu)
+* **Garmin 訓練行事曆目標賽事自動擷取**：系統自動檢索 Garmin Connect 日曆中未來三個月（90 天內）已報名之目標賽事（包含全馬、半馬或自訂路跑賽事）。
+* **跨月日曆網格智慧去重**：針對 Garmin Connect 月曆 API 前後週重疊問題，採用 `item.id` 唯一性集合進行去重，並嚴格依時間窗口過濾過期與超期賽事，絕不重複列出。
+* **倒數週數與里程卡片**：於 Telegram 日報以清楚卡片呈現 `🚩 2026-10-25 (倒數 32 天 (約 4 週)) 2026 長榮航空城市觀光半程馬拉松 | 21.1km`（無賽事時自動優雅隱藏，不佔版面）。
+* **備賽週期判讀與每日具體菜單**：Gemini AI 自動根據賽事倒數天數/週數，識別跑者當前處於何種備賽階段（基礎耐力期、專項速度期、高峰期、賽前減量期 Taper），結合近期的 ACWR 急性與慢性負荷比、今日生理恢復狀況與丹尼爾 VDOT 靶心配速，為跑者量身開立「**每日具體訓練菜單**」（指定訓練目的 E/M/T/I/R、預計公里數、精確靶心配速範圍與暖身收操指引）。
+
+### 8. 🩺 智慧生理指標優雅降級 (Graceful Degradation)
 * 自動安全讀取夜間 **HRV 心率變異度**（前夜平均、7日基準線、平衡狀態）、**靜止心率 (RHR)** 與 **身體電量**。
 * **零干擾防護**：若手錶未同步或未配戴入睡，系統自動無縫略過該區塊，絕不拋錯中斷；有數據時無縫融入 AI 提示詞評估中樞神經系統修復度。
 
-### 8. 📊 專業遙測圖表與 Telegram 智慧推播
+### 9. 📊 專業遙測圖表與 Telegram 智慧推播
 * **獨立高清晰度圖表 (Standalone Telemetry Charts)**：告別多圖擠在一起排版擁擠的困擾，系統將各項核心指標獨立繪製為大尺寸圖表（包含 **ACWR 急性與慢性負荷指標圖**、**Z1~Z5 心率區間環圈甜甜圈圖**、**各公里配速心率雙軸走勢圖**），透過 Telegram 逐張推播，手機端滿版呈現、字體大且數據清晰易讀。
 * **純文字清晰分圈明細**：逐公里配速、心率、海拔上升、步頻與總時間以條理分明之格式排版，保證在所有裝置上完美相容。
 * **LaTeX 符號淨化**：自動過濾 AI 產生的 `$\rightarrow$` 數學符號為標準箭頭 `→`。
@@ -190,15 +196,17 @@ flowchart TB
 AI_Coach/
 ├── .github/
 │   └── workflows/
-│       └── daily_task.yml       # GitHub Actions 每日排程與自動化環境
+│       ├── daily_task.yml       # GitHub Actions 每日排程與自動化環境
+│       └── test_calendar.yml    # 目標賽事與行事曆手動一鍵驗證工作流
 ├── config.py                    # 集中管理 Secrets 環境變數與跑者個人化參數
-├── utils.py                     # VDOT 跑力、有氧解耦率、ACWR、配速與生理恢復運算工具
+├── utils.py                     # VDOT 跑力、有氧解耦率、目標賽事倒數、ACWR 與生理恢復運算工具
 ├── weather_service.py           # Open-Meteo 氣象 API 連線與歷史小時氣候模組
 ├── chart_service.py             # 專業運動遙測儀表板圖表繪製模組 (Matplotlib 深色高科技風格)
 ├── notifier.py                  # Telegram 機器人純文字訊息與高清圖檔推播
-├── garmin_service.py            # Garmin Connect 登入驗證、活動歷程、分圈與每日生理恢復調閱
-├── ai_service.py                # Gemini AI 模型動態掃描、503 降級備援與專業教練 Prompt 封裝
+├── garmin_service.py            # Garmin Connect 登入、活動歷程、分圈、每日生理與目標賽事調閱
+├── ai_service.py                # Gemini AI 模型動態掃描、備賽週期判讀與每日具體訓練菜單開立
 ├── main.py                      # 系統主協調調度核心引擎（GitHub Actions 執行入口點）
+├── test_garmin_calendar.py      # 本機/雲端行事曆與目標賽事診斷測試腳本
 ├── .gitignore                   # Git 排除清單（忽略敏感檔案、快取、虛擬環境與本機記錄）
 └── README.md                    # 專案詳細介紹與架構文檔
 ```
