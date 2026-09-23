@@ -165,7 +165,13 @@ flowchart TB
 ### 6. 💓 前後半程有氧解耦率 (Aerobic Decoupling / Decoupling %)
 * 引入運動生理學權威 Joe Friel 之 **效率因子 EF (Efficiency Factor = 功率或速度 / 心率)** 模型。
 * 將長跑活動切分為前半程（前 50% 距離）與後半程（後 50% 距離），精準計算心率漂移率：
-  $$\text{Decoupling (\%)} = \frac{\text{EF}_{\text{前半}} - \text{EF}_{\text{後半}}}{\text{EF}_{\text{前半}}} \times 100\%$$
+
+$$
+\text{Decoupling (\%)} = \frac{\text{EF}_1 - \text{EF}_2}{\text{EF}_1} \times 100\%
+$$
+
+  * $\text{EF}_1$：前半程效率因子（$\text{速度} / \text{心率}$ 或 $\text{功率} / \text{心率}$）
+  * $\text{EF}_2$：後半程效率因子（$\text{速度} / \text{心率}$ 或 $\text{功率} / \text{心率}$）
 * **四大科學耐力等級判定**：
   * 🟢 **< 3.0% (極度穩定 Elite Aerobic Base)**：有氧底層堅固，幾乎無心率漂移。
   * 🔵 **3.0% ~ 5.0% (最佳適應 Well-Trained)**：心率與配速平衡良好，具備優秀馬拉松耐力。
