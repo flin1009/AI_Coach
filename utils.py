@@ -452,4 +452,25 @@ def format_aerobic_decoupling(decoupling_data):
     ]
     return "\n".join(lines)
 
+def format_upcoming_races(races):
+    """格式化未來三個月內之目標賽事清單與倒數"""
+    if not races:
+        return ""
+    lines = ["🏆 【未來目標賽事 (近三個月倒數)】"]
+    for r in races:
+        days = r.get("days_left", 0)
+        dist = r.get("distance_km")
+        dist_str = f" | {dist}km" if dist else ""
+        weeks = days // 7
+        if days == 0:
+            time_str = "🔥 今天比賽日 (Race Day!)"
+        elif days == 1:
+            time_str = "⚡ 明天比賽日 (Tomorrow!)"
+        elif days < 14:
+            time_str = f"倒數 {days} 天"
+        else:
+            time_str = f"倒數 {days} 天 (約 {weeks} 週)"
+        lines.append(f"  - 🚩 {r['date']} ({time_str}) {r['title']}{dist_str}")
+    return "\n".join(lines)
+
 

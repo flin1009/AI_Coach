@@ -25,7 +25,8 @@ from utils import (
     calculate_vdot_paces,
     format_vdot_paces,
     calculate_aerobic_decoupling,
-    format_aerobic_decoupling
+    format_aerobic_decoupling,
+    format_upcoming_races
 )
 from weather_service import get_open_meteo_weather
 from notifier import send_telegram, send_telegram_photo
@@ -35,7 +36,8 @@ from garmin_service import (
     fetch_extended_activities,
     fetch_activity_splits,
     fetch_activity_hr_zones,
-    fetch_daily_recovery_metrics
+    fetch_daily_recovery_metrics,
+    fetch_upcoming_races
 )
 from ai_service import (
     get_genai_client,
@@ -77,6 +79,13 @@ def run_main_task():
         else:
             print("ℹ️ 今日無生理恢復數據 (手錶未同步或未配戴入睡)，優雅略過此區塊。")
 
+        # 4. 取得未來目標賽事 (近三個月/90天)
+        upcoming_races = fetch_upcoming_races(client_garmin, months_ahead=3)
+        races_str = format_upcoming_races(upcoming_races)
+        if races_str:
+            print(f"🏆 成功取得近期目標賽事: {len(upcoming_races)} 場")
+        else:
+            print("ℹ️ 近期三個月內未排定目標賽事。")
 
         latest_act = activities[0]
         start_time_str = latest_act.get('startTimeLocal', '')
@@ -99,6 +108,10 @@ def run_main_task():
 
             if vdot_str:
                 report.append(vdot_str)
+                report.append("-" * 30)
+
+            if races_str:
+                report.append(races_str)
                 report.append("-" * 30)
 
             if recovery_str:
@@ -153,6 +166,10 @@ def run_main_task():
 
         if vdot_str:
             report.append(vdot_str)
+            report.append("-" * 30)
+
+        if races_str:
+            report.append(races_str)
             report.append("-" * 30)
 
         if recovery_str:

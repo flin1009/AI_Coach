@@ -96,3 +96,79 @@ def fetch_daily_recovery_metrics(client, target_date=None):
         }
     except Exception:
         return None
+
+def fetch_upcoming_races(client, months_ahead=3):
+    """取得未來指定月數內 (預設3個月/90天) 的目標賽事清單，並依日期去重排序
+    - 解決跨月日曆網格導致同賽事重複出現的問題 (依據 item.id 唯一性去重)
+    - 嚴格過濾今天至今天+90天內的賽事
+    - 計算倒數天數 (days_left) 與賽事距離 (公里)
+    - 優雅降級：若 API 連線失敗或無資料，安全回傳空清單 []
+    """
+    try:
+        today = datetime.date.today()
+        max_date = today + datetime.timedelta(days=months_ahead * 30)
+
+        # 計算欲查詢的年月份 (包含本月與未來 months_ahead 個月)
+        target_months = []
+        for offset in range(months_ahead + 1):
+            m = today.month + offset
+            y = today.year
+            if m > 12:
+                y += (m - 1) // 12
+                m = ((m - 1) % 12) + 1
+            target_months.append((y, m))
+
+        seen_ids = set()
+        races = []
+
+        for y, m in target_months:
+            try:
+                data = client.get_scheduled_workouts(y, m)
+                items = data.get("calendarItems", []) if isinstance(data, dict) else []
+                for item in items:
+                    itype = str(item.get("itemType", "")).lower()
+                    if itype not in ["event", "race"] and "event" not in itype:
+                        continue
+
+                    # 唯一性 ID 去重 (防止日曆前後跨月重複)
+                    item_id = item.get("id") or item.get("eventId") or (item.get("date"), item.get("title"))
+                    if item_id in seen_ids:
+                        continue
+                    seen_ids.add(item_id)
+
+                    date_str = item.get("date") or item.get("startDate")
+                    if not date_str:
+                        continue
+                    
+                    try:
+                        # 擷取 YYYY-MM-DD 部分
+                        clean_date_str = date_str[:10]
+                        race_date = datetime.date.fromisoformat(clean_date_str)
+                    except Exception:
+                        continue
+
+                    # 僅保留今天起三個月內的賽事 (不包含過期賽事)
+                    if today <= race_date <= max_date:
+                        days_left = (race_date - today).days
+                        dist_meters = item.get("distance")
+                        dist_km = round(dist_meters / 1000.0, 1) if dist_meters else None
+                        title = item.get("title") or item.get("eventTitle") or item.get("name") or "未命名賽事"
+
+                        races.append({
+                            "id": item.get("id"),
+                            "title": title,
+                            "date": clean_date_str,
+                            "days_left": days_left,
+                            "distance_km": dist_km,
+                            "completion_target": item.get("completionTarget")
+                        })
+            except Exception as month_err:
+                print(f"⚠️ 讀取 {y}/{m} 行事曆失敗: {month_err}")
+                continue
+
+        # 按賽事日期由近到遠排序
+        races.sort(key=lambda r: r["date"])
+        return races
+    except Exception as e:
+        print(f"⚠️ 取得目標賽事發生異常: {e}")
+        return []
