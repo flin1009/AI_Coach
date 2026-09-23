@@ -60,7 +60,7 @@ flowchart TB
 
         subgraph G_PUSH["📲 雙軌推播層 (Notification)"]
             direction TB
-            NOTIFY["<b>notifier.py</b><br/>純文字分圈數據推播<br/>sendPhoto 高清圖片逐張發送"]
+            NOTIFY["<b>notifier.py</b><br/>兩段階梯式條件切分發送<br/>(資訊數據 / AI建議各一則)<br/>sendPhoto 高清圖片逐張發送"]
             TG[("<b>Telegram 跑者手機</b><br/>💬 結構化深度日報 (含<b>賽事倒數</b>)<br/>🖼️ 3 張滿版大圖無壓縮呈現")]
         end
     end
@@ -184,6 +184,10 @@ flowchart TB
 * **零干擾防護**：若手錶未同步或未配戴入睡，系統自動無縫略過該區塊，絕不拋錯中斷；有數據時無縫融入 AI 提示詞評估中樞神經系統修復度。
 
 ### 9. 📊 專業遙測圖表與 Telegram 智慧推播
+* **雙軌訊息邏輯切分 (Smart Message Splitting)**：整份長報表依邏輯自動切分為兩則獨立推播，大幅提升閱讀體驗：
+  * **第一則（跑者資訊與活動數據）**：跑者背景、VDOT 靶心配速、三個月目標賽事倒數、生理恢復 (HRV/RHR)、ACWR 急慢性負荷、近期歷程與今日分圈細節。
+  * **第二則（Gemini AI 建議）**：由 `🤖 【Gemini AI 教練建議】` 開頭，專門呈現深度診斷、賽事週期洞見與每日具體訓練菜單。
+  * **字數安全切分**：每則訊息若超過 4000 字元上限，系統依然會自動再行分段，絕不因字數超限而遺失任何文字。
 * **獨立高清晰度圖表 (Standalone Telemetry Charts)**：告別多圖擠在一起排版擁擠的困擾，系統將各項核心指標獨立繪製為大尺寸圖表（包含 **ACWR 急性與慢性負荷指標圖**、**Z1~Z5 心率區間環圈甜甜圈圖**、**各公里配速心率雙軸走勢圖**），透過 Telegram 逐張推播，手機端滿版呈現、字體大且數據清晰易讀。
 * **純文字清晰分圈明細**：逐公里配速、心率、海拔上升、步頻與總時間以條理分明之格式排版，保證在所有裝置上完美相容。
 * **LaTeX 符號淨化**：自動過濾 AI 產生的 `$\rightarrow$` 數學符號為標準箭頭 `→`。
@@ -202,7 +206,7 @@ AI_Coach/
 ├── utils.py                     # VDOT 跑力、有氧解耦率、目標賽事倒數、ACWR 與生理恢復運算工具
 ├── weather_service.py           # Open-Meteo 氣象 API 連線與歷史小時氣候模組
 ├── chart_service.py             # 專業運動遙測儀表板圖表繪製模組 (Matplotlib 深色高科技風格)
-├── notifier.py                  # Telegram 機器人純文字訊息與高清圖檔推播
+├── notifier.py                  # Telegram 機器人訊息分段推播 (條件切分+字數防護) 與高清圖檔發送
 ├── garmin_service.py            # Garmin Connect 登入、活動歷程、分圈、每日生理與目標賽事調閱
 ├── ai_service.py                # Gemini AI 模型動態掃描、備賽週期判讀與每日具體訓練菜單開立
 ├── main.py                      # 系統主協調調度核心引擎（GitHub Actions 執行入口點）
