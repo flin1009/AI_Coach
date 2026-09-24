@@ -5,6 +5,9 @@
 [![Garmin Connect](https://img.shields.io/badge/Garmin-Connect_API-007cc3.svg)](https://connect.garmin.com/)
 [![Google Gemini](https://img.shields.io/badge/Google_Gemini-Flash_AI-orange.svg)](https://ai.google.dev/)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-Bot_Push-24A1DE.svg)](https://telegram.org/)
+[![Website](https://img.shields.io/badge/Website-GitHub_Pages-2ea44f.svg)](https://flin1009.github.io/AI_Coach/)
+
+> 🌐 **專案官方形象與互動介紹網站**：[https://flin1009.github.io/AI_Coach/](https://flin1009.github.io/AI_Coach/)（支援手機實機報表預覽、VDOT 跑力與有氧解耦率即時線上試算）
 
 **AI Coach** 是一個專為耐力跑者打造的「全自動化智慧訓練診斷系統」。系統每日透過 **GitHub Actions** 定時排程自動執行，主動調閱 **Garmin Connect** 最新跑步與交叉訓練數據、**三個月內目標賽事倒數**，整合 **Open-Meteo** 活動當下之精準歷史溫濕度氣象，並透過 **Google Gemini AI**（具備多模型自動降級備援技術）進行「7 筆微週期訓練負荷評估」、「目標賽事備賽週期分析」與「最新課表全維度深層解剖」，綜合開立包含精確配速與距離的「每日具體訓練菜單」，最終將結構化的診斷報告與個人化訓練建議直接推播至跑者的 **Telegram**。
 
@@ -211,6 +214,9 @@ AI_Coach/
 │       ├── daily_task.yml       # GitHub Actions 每日排程與自動化環境
 │       ├── test_calendar.yml    # 目標賽事與行事曆手動一鍵驗證工作流
 │       └── cleanup_runs.yml     # 一鍵清空所有 Actions 歷史執行紀錄工作流
+├── docs/                        # GitHub Pages 官方形象與互動介紹網站
+│   ├── assets/                  # 網站專用高解析度架構圖與遙測圖表
+│   └── index.html               # 專案官網 (Tailwind CSS + VDOT/解耦率線上試算)
 ├── config.py                    # 集中管理 Secrets 環境變數與跑者個人化參數
 ├── utils.py                     # VDOT 跑力、有氧解耦率、目標賽事倒數、ACWR 與生理恢復運算工具
 ├── weather_service.py           # Open-Meteo 氣象 API 連線與歷史小時氣候模組
@@ -395,6 +401,20 @@ on:
   - [Crontab.guru - 視覺化 Cron 時間表達式產生器](https://crontab.guru/)
   - [GitHub Actions 快速入門 (官方繁中)](https://docs.github.com/zh/actions/writing-workflows/quickstart)
   - [GitHub Actions 排程事件語法說明 (Schedule Event)](https://docs.github.com/zh/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#schedule)
+
+---
+
+### 🌐 啟用 GitHub Pages 專案形象官網 (Enable GitHub Pages)
+
+本專案於 `docs/` 資料夾內建現代科技運動風之專案介紹形象官網（含手機實機日報切換、VDOT 跑力與有氧解耦率即時線上試算機）。只需以下步驟即可免費啟用：
+
+1. 前往 GitHub 儲存庫頁面，點選上方的 **「Settings」**。
+2. 在左側側邊欄點選 **「Pages」**。
+3. 在 **Build and deployment** 區塊：
+   - **Source** 保持為 `Deploy from a branch`。
+   - **Branch** 選擇 `main`，後方目錄選擇 **`/docs`**。
+4. 點擊 **「Save」** 儲存。
+5. 稍等約 30~60 秒，網頁上方將顯示上線網址（例如：`https://<你的帳號>.github.io/AI_Coach/`）！
 
 ---
 

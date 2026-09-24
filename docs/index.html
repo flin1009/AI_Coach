@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Coach - 個人化智慧馬拉松 AI 教練 | 整合 Garmin、運動科學與 Google Gemini</title>
+  <meta name="description" content="專為耐力跑者設計的全自動化訓練診斷系統。每日透過 GitHub Actions 自動調閱 Garmin 數據、三個月目標賽事倒數與歷史氣候，透過 Google Gemini 開立每日訓練菜單並推播至 Telegram。">
+  
+  <!-- Open Graph / Meta for Social Sharing -->
+  <meta property="og:title" content="AI Coach - 個人化智慧馬拉松 AI 教練">
+  <meta property="og:description" content="全自動 0 伺服器成本！整合 Garmin Connect、丹尼爾 VDOT 靶心配速、ACWR 負荷比與 Google Gemini AI 的專屬馬拉松教練。">
+  <meta property="og:image" content="assets/architecture.png">
+  <meta property="og:type" content="website">
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏃</text></svg>">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              dark: '#0a0f18',
+              card: '#111827',
+              panel: '#162032',
+              cyan: '#00b4d8',
+              green: '#00e676',
+              orange: '#ff9100',
+              purple: '#a855f7',
+              rose: '#f43f5e'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts & FontAwesome -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- KaTeX CSS & JS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body);"></script>
+
+  <style>
+    /* 科技感深色漸層背景與微光效果 */
+    body {
+      background-color: #070b12;
+      color: #f1f5f9;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+    .glow-cyan {
+      box-shadow: 0 0 25px -5px rgba(0, 180, 216, 0.4);
+    }
+    .glow-green {
+      box-shadow: 0 0 25px -5px rgba(0, 230, 118, 0.4);
+    }
+    .glow-purple {
+      box-shadow: 0 0 25px -5px rgba(168, 85, 247, 0.4);
+    }
+    .glass-card {
+      background: rgba(17, 24, 39, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-nav {
+      background: rgba(7, 11, 18, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    /* 客製化滾動條 */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0a0f18;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #253347;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #00b4d8;
+    }
+  </style>
+</head>
+<body class="selection:bg-cyan-500 selection:text-black">
+
+  <!-- ================= 頂部最新更新微膠囊 Announcement Bar ================= -->
+  <aside aria-label="Announcement" class="bg-gradient-to-r from-cyan-900/60 via-purple-900/60 to-emerald-900/60 border-b border-cyan-500/20 py-2 px-4 text-xs text-center text-slate-300">
+    <div class="max-w-7xl mx-auto flex items-center justify-center gap-2 flex-wrap">
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+        v2.0 Full Auto
+      </span>
+      <span>🔥 全新功能：支援<b>丹尼爾 VDOT 靶心配速</b>、<b>前後半程有氧解耦率</b>與<b>近三個月目標賽事去重倒數</b>！</span>
+      <a href="#features" class="underline text-cyan-400 hover:text-cyan-200 ml-1 font-medium">了解更多 &rarr;</a>
+    </div>
+  </aside>
+
+  <!-- ================= 導覽列 Navigation ================= -->
+  <nav class="sticky top-0 z-50 glass-nav transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        
+        <!-- Logo -->
+        <a href="#" class="flex items-center gap-3 group">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-400 flex items-center justify-center text-black font-bold text-xl shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
+            🏃
+          </div>
+          <div>
+            <span class="text-xl font-black tracking-tight bg-gradient-to-r from-white via-slate-100 to-cyan-400 bg-clip-text text-transparent">
+              AI Coach
+            </span>
+            <span class="hidden sm:inline-block ml-2 text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">Garmin + Gemini</span>
+          </div>
+        </a>
+
+        <!-- Desktop Menu Links -->
+        <div class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
+          <a href="#features" class="hover:text-cyan-400 transition-colors">核心亮點</a>
+          <a href="#telegram" class="hover:text-cyan-400 transition-colors">實機報表</a>
+          <a href="#calculator" class="hover:text-cyan-400 transition-colors">跑力試算</a>
+          <a href="#architecture" class="hover:text-cyan-400 transition-colors">系統架構</a>
+          <a href="#deploy" class="hover:text-cyan-400 transition-colors">3 步部屬</a>
+          <a href="#faq" class="hover:text-cyan-400 transition-colors">常見問題</a>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-3">
+          <a href="https://github.com/flin1009/AI_Coach" target="_blank" rel="noopener noreferrer" 
+             class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold border border-slate-700 transition-all hover:border-slate-500">
+            <i class="fa-brands fa-github text-base"></i>
+            <span>GitHub</span>
+            <span id="star-count" class="hidden sm:inline-block bg-slate-900 px-1.5 py-0.5 rounded text-[11px] text-amber-400 font-bold border border-amber-500/20">★ Star</span>
+          </a>
+          
+          <a href="#deploy" class="hidden sm:inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-black text-xs sm:text-sm font-bold shadow-md shadow-cyan-500/20 transition-all transform hover:-translate-y-0.5">
+            <i class="fa-solid fa-rocket"></i>
+            <span>立即啟用</span>
+          </a>
+
+          <!-- Mobile Hamburger -->
+          <button id="mobile-menu-btn" class="md:hidden text-slate-400 hover:text-white p-2 focus:outline-none" aria-label="切換選單">
+            <i class="fa-solid fa-bars text-xl"></i>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Mobile Dropdown Menu -->
+    <div id="mobile-menu" class="hidden md:hidden glass-card border-b border-slate-800 px-4 pt-2 pb-4 space-y-2 text-sm">
+      <a href="#features" class="block py-2 text-slate-300 hover:text-cyan-400 border-b border-slate-800/60">核心亮點</a>
+      <a href="#telegram" class="block py-2 text-slate-300 hover:text-cyan-400 border-b border-slate-800/60">實機報表</a>
+      <a href="#calculator" class="block py-2 text-slate-300 hover:text-cyan-400 border-b border-slate-800/60">跑力試算</a>
+      <a href="#architecture" class="block py-2 text-slate-300 hover:text-cyan-400 border-b border-slate-800/60">系統架構</a>
+      <a href="#deploy" class="block py-2 text-slate-300 hover:text-cyan-400 border-b border-slate-800/60">3 步部屬</a>
+      <a href="#faq" class="block py-2 text-slate-300 hover:text-cyan-400">常見問題</a>
+    </div>
+  </nav>
+
+  <!-- ================= HERO 英雄區塊 ================= -->
+  <section class="relative pt-16 pb-20 md:pt-24 md:pb-32 overflow-hidden">
+    <!-- 背景裝飾微光光暈 -->
+    <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-gradient-to-tr from-cyan-600/15 via-purple-600/15 to-emerald-500/15 blur-[120px] pointer-events-none rounded-full"></div>
+    <div class="absolute -top-10 right-10 w-72 h-72 bg-cyan-500/10 blur-[90px] pointer-events-none rounded-full"></div>
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+      
+      <!-- 標籤 Badge -->
+      <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-slate-700/80 text-xs sm:text-sm text-slate-300 mb-6 shadow-inner">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>100% 免伺服器運維 • GitHub Actions 每日定時全自動排程</span>
+      </div>
+
+      <!-- 主標題 -->
+      <h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight leading-[1.15] max-w-5xl mx-auto mb-6">
+        讓你的 Garmin 手錶數據<br class="hidden sm:inline" />
+        真正成為你的<span class="bg-gradient-to-r from-cyan-400 via-emerald-400 to-teal-300 bg-clip-text text-transparent">專屬馬拉松 AI 教練</span>
+      </h1>
+
+      <!-- 副標題 -->
+      <p class="text-slate-400 text-base sm:text-lg md:text-xl max-w-3xl mx-auto mb-10 leading-relaxed font-normal">
+        每天清晨自動同步 Garmin Connect 運動數據與近三個月賽事倒數，結合 Open-Meteo 當下精準溫濕度，透過 Google Gemini 深度診斷，輸出 <span class="text-slate-200 font-semibold">VDOT 靶心配速</span>、<span class="text-slate-200 font-semibold">ACWR 負荷監控</span> 與 <span class="text-slate-200 font-semibold">每日訓練菜單</span>，精準推播至 Telegram。
+      </p>
+
+      <!-- 按鈕區 -->
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+        <a href="#deploy" class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-black font-extrabold text-base shadow-lg shadow-cyan-500/25 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
+          <span>一鍵免費在 GitHub 啟用</span>
+        </a>
+        <a href="#telegram" class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/90 text-slate-200 font-bold text-base border border-slate-700 transition-all flex items-center justify-center gap-2">
+          <i class="fa-brands fa-telegram text-cyan-400 text-lg"></i>
+          <span>檢視 Telegram 實機成果</span>
+        </a>
+      </div>
+
+      <!-- 核心關鍵指標列 (Key Metrics) -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+        <div class="glass-card rounded-2xl p-4 text-center">
+          <div class="text-2xl sm:text-3xl font-black text-cyan-400 mb-1">$0 元</div>
+          <div class="text-xs sm:text-sm text-slate-400 font-medium">全託管免伺服器成本</div>
+        </div>
+        <div class="glass-card rounded-2xl p-4 text-center">
+          <div class="text-2xl sm:text-3xl font-black text-emerald-400 mb-1">5 大配速</div>
+          <div class="text-xs sm:text-sm text-slate-400 font-medium">丹尼爾 VDOT 靶心精算</div>
+        </div>
+        <div class="glass-card rounded-2xl p-4 text-center">
+          <div class="text-2xl sm:text-3xl font-black text-purple-400 mb-1">28 天回溯</div>
+          <div class="text-xs sm:text-sm text-slate-400 font-medium">ACWR 急慢性負荷比</div>
+        </div>
+        <div class="glass-card rounded-2xl p-4 text-center">
+          <div class="text-2xl sm:text-3xl font-black text-amber-400 mb-1">3 張大圖</div>
+          <div class="text-xs sm:text-sm text-slate-400 font-medium">滿版高解析度遙測分析</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= 實機 TELEGRAM 報表展示區 (焦點展示) ================= -->
+  <section id="telegram" class="py-20 bg-slate-950/60 border-y border-slate-800/80 relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <!-- 區塊標題 -->
+      <div class="text-center max-w-3xl mx-auto mb-14">
+        <span class="text-xs font-bold uppercase tracking-wider text-cyan-400 bg-cyan-950/50 px-3 py-1 rounded-full border border-cyan-800/40">
+          TELEGRAM SMART NOTIFIER
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-black tracking-tight mt-3 mb-4">
+          晨間送達：雙軌獨立訊息與滿版高清遙測圖
+        </h2>
+        <p class="text-slate-400 text-sm sm:text-base">
+          告別雜亂冗長文字！系統採用「雙軌邏輯切分」，第一則呈現運動數據與分圈，第二則專為 AI 診斷與每日具體菜單；搭配 3 張獨立高清晰度 Matplotlib 運動科學圖表。
+        </p>
+
+        <!-- 模式切換鈕 -->
+        <div class="inline-flex p-1 rounded-xl bg-slate-900 border border-slate-800 mt-6 shadow-inner">
+          <button id="tab-workout" class="px-5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all bg-gradient-to-r from-cyan-500 to-emerald-500 text-black shadow-md">
+            🏃 運動日：全維度訓練日報
+          </button>
+          <button id="tab-rest" class="px-5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all text-slate-400 hover:text-slate-200">
+            🌿 休整日：超補償恢復日報
+          </button>
+        </div>
+      </div>
+
+      <!-- 模擬手機畫面 (Smartphone Mockup) -->
+      <div class="max-w-2xl mx-auto">
+        <div class="rounded-[2.5rem] p-3 sm:p-5 bg-gradient-to-b from-slate-700 via-slate-800 to-slate-900 shadow-2xl border border-slate-700 glow-cyan">
+          
+          <!-- 手機外殼內部螢幕 -->
+          <div class="rounded-[2rem] bg-[#0e1621] p-4 sm:p-6 overflow-hidden border border-slate-800 text-slate-200 text-xs sm:text-sm font-sans shadow-inner">
+            
+            <!-- Telegram 頂部狀態列 -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 text-xs text-slate-400">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-full bg-cyan-500 flex items-center justify-center text-black font-bold text-sm">
+                  🤖
+                </div>
+                <div>
+                  <div class="font-bold text-slate-200 flex items-center gap-1.5">
+                    <span>AI Coach 專屬教練</span>
+                    <i class="fa-solid fa-circle-check text-cyan-400 text-xs"></i>
+                  </div>
+                  <div class="text-[10px] text-emerald-400">bot • 線上</div>
+                </div>
+              </div>
+              <div class="text-right text-[11px] text-slate-500 font-mono">06:00 AM</div>
+            </div>
+
+            <!-- 動態內容展示容器 (運動日 vs 休整日) -->
+            <div id="mockup-content" class="space-y-4 font-mono">
+              
+              <!-- 運動日內容 (預設) -->
+              <div id="content-workout" class="space-y-4">
+                
+                <!-- 訊息 1：數據報表 -->
+                <div class="bg-[#182533] p-4 rounded-2xl rounded-tl-sm border border-slate-700/60 shadow-md">
+                  <div class="flex items-center justify-between text-cyan-300 font-bold mb-2 pb-1 border-b border-slate-700/50">
+                    <span>📊 【跑者訓練數據日報 - gemini-2.5-flash】</span>
+                    <span class="text-[10px] text-slate-400 font-normal">訊息 1/2</span>
+                  </div>
+                  <div class="text-slate-300 space-y-1.5 text-[11px] sm:text-xs">
+                    <div>👤 跑者背景：PB 3:53 | 1979 年生 (47歲)</div>
+                    <div class="text-amber-300 font-bold">🎯 【VDOT 41.0 靶心配速】E 5:44~6:21 | M 5:23 | T 5:00 | I 4:35 | R 4:14</div>
+                    <div class="text-cyan-400">🏆 【未來目標賽事 (近三個月倒數)】</div>
+                    <div class="pl-2 text-slate-300">🚩 2026-10-25 (倒數 32 天 (約 4 週)) 長榮航空城市觀光半程馬拉松 | 21.1km</div>
+                    <div class="pt-1 text-slate-400">🩺 【夜間自律神經與準備度】：HRV 58ms (良好) | 靜止心率 48bpm | 身體電量 86</div>
+                    <div class="text-emerald-400 font-semibold">📈 【ACWR 體能負荷比】：1.14 (Sweet Spot 最佳適應區間)</div>
+                    <div class="border-t border-slate-700/60 pt-2 text-slate-200">
+                      🏃 【最新活動】：2026-09-23 晨間有氧耐力跑<br/>
+                      • 距離：10.02 km | 總耗時：58:32 | 平均配速：5:50 /km<br/>
+                      • 平均心率：134 bpm (Z2 佔比 86%) | 跑步功率：242 W<br/>
+                      • 步頻：178 spm | 步幅：0.96 m | 垂直振幅：7.8 cm | 觸地時間：228 ms<br/>
+                      • 🌤️ 氣象：高雄 26.2°C | 濕度 78% | 體感 28.5°C
+                    </div>
+                    <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 text-[10px] sm:text-[11px] leading-relaxed text-slate-300">
+                      [分圈細節 (配速 | 心率 | 爬升 | 步頻 | 時間)]<br/>
+                      &nbsp;&nbsp;- L01: 6:02 | 126bpm | 0m | 174spm | 6:02<br/>
+                      &nbsp;&nbsp;- L02: 5:54 | 131bpm | 1m | 176spm | 5:54<br/>
+                      &nbsp;&nbsp;- L03: 5:50 | 133bpm | 0m | 178spm | 5:50<br/>
+                      &nbsp;&nbsp;... (共 10 圈精準條列)
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 滿版高清遙測圖示範 (3 張圖展示) -->
+                <div class="space-y-2">
+                  <div class="text-[10px] text-slate-400 uppercase tracking-wider font-sans font-semibold">📲 連續推播 3 張獨立高解析度視覺化圖表：</div>
+                  
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <!-- 圖 1 -->
+                    <div class="group relative rounded-xl overflow-hidden border border-slate-700 bg-slate-900 cursor-pointer" onclick="openLightbox('assets/laps_trend_chart.png', '各公里配速與心率走勢圖 (含解耦分割線)')">
+                      <img src="assets/laps_trend_chart.png" alt="各公里配速心率雙軸走勢圖" class="w-full h-24 object-cover group-hover:scale-105 transition-transform" />
+                      <div class="absolute inset-0 bg-black/40 flex items-end p-1.5 opacity-90">
+                        <span class="text-[10px] text-slate-200 font-sans font-medium">⚡ 各公里配速/心率走勢</span>
+                      </div>
+                    </div>
+                    <!-- 圖 2 -->
+                    <div class="group relative rounded-xl overflow-hidden border border-slate-700 bg-slate-900 cursor-pointer" onclick="openLightbox('assets/acwr_chart.png', 'ACWR 負荷指針與體能監測圖')">
+                      <img src="assets/acwr_chart.png" alt="ACWR 急性與慢性負荷比" class="w-full h-24 object-cover group-hover:scale-105 transition-transform" />
+                      <div class="absolute inset-0 bg-black/40 flex items-end p-1.5 opacity-90">
+                        <span class="text-[10px] text-slate-200 font-sans font-medium">📈 ACWR 負荷量規</span>
+                      </div>
+                    </div>
+                    <!-- 圖 3 -->
+                    <div class="group relative rounded-xl overflow-hidden border border-slate-700 bg-slate-900 cursor-pointer" onclick="openLightbox('assets/hr_zones_chart.png', '心率五大區間分佈 Donut 圖')">
+                      <img src="assets/hr_zones_chart.png" alt="心率五大區間分佈" class="w-full h-24 object-cover group-hover:scale-105 transition-transform" />
+                      <div class="absolute inset-0 bg-black/40 flex items-end p-1.5 opacity-90">
+                        <span class="text-[10px] text-slate-200 font-sans font-medium">💓 心率五大區間</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="text-[10px] text-center text-slate-500 font-sans">點擊圖片可放大檢視高解析度原圖</div>
+                </div>
+
+                <!-- 訊息 2：Gemini AI 建議 -->
+                <div class="bg-[#182533] p-4 rounded-2xl rounded-tl-sm border border-cyan-500/30 shadow-lg shadow-cyan-950/20">
+                  <div class="flex items-center justify-between text-emerald-400 font-bold mb-2 pb-1 border-b border-slate-700/50">
+                    <span>🤖 【Gemini AI 教練建議】</span>
+                    <span class="text-[10px] text-cyan-400 font-normal">訊息 2/2</span>
+                  </div>
+                  <div class="text-slate-300 space-y-2 text-[11px] sm:text-xs leading-relaxed font-sans">
+                    <p><b>1. 課表執行評價：</b> 本次跑步辨識為「Zone 2 有氧基礎耐力跑」。Z2 心率停留佔比高達 86%，步頻穩定在 178spm，前半程與後半程配速幾無掉速，執行品質極為優秀。</p>
+                    <p><b>2. 有氧解耦診斷：</b> 今日有氧解耦率為 <b>3.2%</b>（屬於最佳適應區間），心率未見明顯漂移，代表基礎有氧耐力非常扎實，高雄 26°C 高溫下體溫調節良好。</p>
+                    <p><b>3. 備賽週期分析：</b> 距離長榮半馬僅剩 32 天（進入專項準備期第二階段），當前 ACWR 1.14 處於絕佳體能吸收階段，無過度疲勞跡象。</p>
+                    <div class="bg-cyan-950/40 p-2.5 rounded-lg border border-cyan-700/50 text-cyan-200">
+                      <b>🎯 【明日具體訓練菜單】</b><br/>
+                      • 課表類型：E 配速主動恢復跑<br/>
+                      • 目標距離：6.0 公里<br/>
+                      • 靶心配速：嚴格維持在 <b>5:44 ~ 6:21 /km</b><br/>
+                      • 心率上限：不高於 138 bpm，跑後進行 10 分鐘下肢伸展放鬆。
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- 休整日內容 (點選時切換) -->
+              <div id="content-rest" class="hidden space-y-4">
+                <!-- 訊息 1：休整日數據 -->
+                <div class="bg-[#182533] p-4 rounded-2xl rounded-tl-sm border border-slate-700/60 shadow-md">
+                  <div class="flex items-center justify-between text-emerald-300 font-bold mb-2 pb-1 border-b border-slate-700/50">
+                    <span>🌿 【跑者今日休整與體能恢復日報 - gemini-2.5-flash】</span>
+                    <span class="text-[10px] text-slate-400 font-normal">訊息 1/2</span>
+                  </div>
+                  <div class="text-slate-300 space-y-1.5 text-[11px] sm:text-xs">
+                    <div>👤 跑者背景：PB 3:53 | 1979 年生</div>
+                    <div class="text-amber-300 font-bold">🎯 【VDOT 41.0 靶心配速】E 5:44~6:21 | M 5:23 | T 5:00 | I 4:35 | R 4:14</div>
+                    <div class="text-cyan-400">🏆 【未來目標賽事】：🚩 2026-10-25 長榮航空半馬 (倒數 32 天)</div>
+                    <div class="pt-1 text-slate-400">🩺 【夜間生理修復】：HRV 62ms (均衡) | 靜止心率 46bpm | 身體電量 92</div>
+                    <div class="text-cyan-400 font-semibold">📈 【ACWR 急慢性負荷比】：0.98 (體能吸收甜點區)</div>
+                    <div class="border-t border-slate-700/60 pt-2 text-slate-200">
+                      📊 【近 7 筆累積微週期訓練脈絡】：<br/>
+                      • 累積總跑量：42.5 km | 累積總負荷：482<br/>
+                      • 跑步次數：4 次 | 交叉訓練：重訓 1 次、游泳 1 次<br/>
+                      • 💡 狀態：跑者過去 36 小時未有新跑步活動，今日進入排定超補償休整！
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 訊息 2：Gemini 休整指引 -->
+                <div class="bg-[#182533] p-4 rounded-2xl rounded-tl-sm border border-emerald-500/30 shadow-lg">
+                  <div class="flex items-center justify-between text-emerald-400 font-bold mb-2 pb-1 border-b border-slate-700/50">
+                    <span>🤖 【Gemini 休整與超補償指引】</span>
+                    <span class="text-[10px] text-emerald-400 font-normal">訊息 2/2</span>
+                  </div>
+                  <div class="text-slate-300 space-y-2 text-[11px] sm:text-xs leading-relaxed font-sans">
+                    <p><b>1. 週期負荷與疲勞診斷：</b> 近 7 日累積 42.5km，中樞神經系統 HRV 恢復至 62ms，心肺疲勞已完全消退，今日休整正是啟動超補償（Supercompensation）的最佳時機。</p>
+                    <p><b>2. 今日主動恢復處方：</b> 建議進行 15 分鐘泡沫軸滾筒筋膜放鬆（重點在小腿後肌群與大腿股四頭肌），搭配 20 分鐘核心肌群低強度等長支撐，毋需額外進行心肺耗竭運動。</p>
+                    <p><b>3. 補給建議：</b> 補足每公斤體重 35ml 水分，並攝取優質蛋白質（豆漿、雞肉、水煮蛋）幫助肌纖維修復。</p>
+                    <div class="bg-emerald-950/40 p-2.5 rounded-lg border border-emerald-700/50 text-emerald-200">
+                      <b>🎯 【明日重啟課表預告】</b><br/>
+                      • 預計課表：8km 漸進配速跑 (Progressive Run)<br/>
+                      • 配速規劃：前 5km E 配速 (6:00/km) &rarr; 後 3km 提升至 M 配速 (5:20/km)。
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= 核心特色亮點 (9 大模組) ================= -->
+  <section id="features" class="py-24 relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <span class="text-xs font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/50 px-3 py-1 rounded-full border border-emerald-800/40">
+          CORE HIGHLIGHTS
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-black tracking-tight mt-3 mb-4">
+          為認真跑者打造的運動科學工程
+        </h2>
+        <p class="text-slate-400 text-sm sm:text-base">
+          不只是搬運數據，而是透過頂尖耐力科學公式與 Google 生成式 AI 模型，將手錶數據轉化為真正具備指導價值的每日訓練決策。
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        <!-- Feature 1 -->
+        <div class="glass-card rounded-2xl p-6 hover:border-cyan-500/50 transition-all duration-300 group">
+          <div class="w-12 h-12 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-bullseye"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-100 mb-2">丹尼爾 VDOT 靶心配速</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            依據 Daniels & Gilbert (1979) 攝氧量阻力公式，依個人全馬 PB 自動反解當前 VDOT 跑力，精確推算 E、M、T、I、R 五大訓練配速區間。
+          </p>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="glass-card rounded-2xl p-6 hover:border-emerald-500/50 transition-all duration-300 group">
+          <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-chart-line"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-100 mb-2">ACWR 28 天體能與受傷預警</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            回溯近 28 天訓練歷程，計算 7 天急性與 28 天慢性負荷比，精確鎖定 0.8~1.3 體能增長「甜點區 (Sweet Spot)」，杜絕過度訓練。
+          </p>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="glass-card rounded-2xl p-6 hover:border-purple-500/50 transition-all duration-300 group">
+          <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-heart-pulse"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-100 mb-2">前後半程有氧解耦率</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            引進 Joe Friel 效率因子 (EF) 模型，精準將運動切分前後半程，計算心率漂移百分比，四段科學等級檢驗有氧耐力底層。
+          </p>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="glass-card rounded-2xl p-6 hover:border-amber-500/50 transition-all duration-300 group">
+          <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-flag-checkered"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-100 mb-2">目標賽事倒數與每日菜單</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            自動調閱 Garmin 行事曆近三個月目標賽事（智慧去重），判讀基礎期、專項期或減量期 (Taper)，開立每日具體距離與配速菜單。
+          </p>
+        </div>
+
+        <!-- Feature 5 -->
+        <div class="glass-card rounded-2xl p-6 hover:border-cyan-500/50 transition-all duration-300 group">
+          <div class="w-12 h-12 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-brain"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-100 mb-2">Gemini 多模型自動降級備援</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            動態掃描最新 Gemini 2.5 / 2.0 Flash 模型陣列，若遭遇尖峰 503 UNAVAILABLE 錯誤，毫秒級自動容錯降級重試，推播 100% 不中斷。
+          </p>
+        </div>
+
+        <!-- Feature 6 -->
+        <div class="glass-card rounded-2xl p-6 hover:border-teal-500/50 transition-all duration-300 group">
+          <div class="w-12 h-12 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-cloud-sun"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-100 mb-2">Open-Meteo 歷史微氣候</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            以 GPS 軌跡與起跑時間座標精準抓取當下氣溫、濕度與體感溫度，讓 AI 教練將外部熱壓力與脫水風險納入生理綜合考量。
+          </p>
+        </div>
+
+        <!-- Feature 7 -->
+        <div class="glass-card rounded-2xl p-6 hover:border-rose-500/50 transition-all duration-300 group">
+          <div class="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-gauge-high"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-100 mb-2">高階跑步動態全解剖</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            手錶跑步功率 (W)、步頻 (spm)、步幅、垂直振幅、步幅比與觸地時間 (GCT) 全面分析，診斷跑姿經濟性與落地衝擊風險。
+          </p>
+        </div>
+
+        <!-- Feature 8 -->
+        <div class="glass-card rounded-2xl p-6 hover:border-indigo-500/50 transition-all duration-300 group">
+          <div class="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-bed"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-100 mb-2">HRV 與體能優雅降級</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            整合夜間 HRV 心率變異度、靜止心率 (RHR) 與身體電量；未配戴手錶入睡時自動優雅略過，絕不中斷主流程。
+          </p>
+        </div>
+
+        <!-- Feature 9 -->
+        <div class="glass-card rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300 group">
+          <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-images"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-100 mb-2">3 大獨立高解析度圖表</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            告別多圖擠在一起的狹窄排版！Matplotlib 獨立產出走勢圖、ACWR 量規與心率甜甜圈，透過 Telegram 逐張推播滿版大圖。
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= 互動式跑力與科學計算機 (跑友最愛互動區) ================= -->
+  <section id="calculator" class="py-24 bg-slate-950/80 border-t border-slate-800 relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <span class="text-xs font-bold uppercase tracking-wider text-purple-400 bg-purple-950/50 px-3 py-1 rounded-full border border-purple-800/40">
+          INTERACTIVE SCIENCE LAB
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-black tracking-tight mt-3 mb-4">
+          跑力與有氧解耦率即時線上試算
+        </h2>
+        <p class="text-slate-400 text-sm sm:text-base">
+          試算核心完全移植自本專案的 Python 運動科學演算法，輸入您的成績即可立即體驗丹尼爾博士 VDOT 跑力公式！
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        
+        <!-- 計算機 1：VDOT 靶心配速 -->
+        <div class="glass-card rounded-3xl p-6 sm:p-8 border border-slate-700/80 shadow-xl relative">
+          <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-lg">
+                <i class="fa-solid fa-calculator"></i>
+              </div>
+              <div>
+                <h3 class="text-xl font-bold text-slate-100">丹尼爾 VDOT 跑力試算</h3>
+                <p class="text-xs text-slate-400">Jack Daniels' Running Formula</p>
+              </div>
+            </div>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800/60 font-mono">
+              Live Calc
+            </span>
+          </div>
+
+          <!-- 輸入區域 -->
+          <div class="space-y-4 mb-6">
+            <div>
+              <label for="pb-input" class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                全馬最佳成績 (PB) — 支援格式例如 3:53 或 3:45:00
+              </label>
+              <div class="relative">
+                <input type="text" id="pb-input" value="3:53" placeholder="例如 3:53" 
+                       class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-lg font-mono text-cyan-300 focus:outline-none focus:border-cyan-500 transition-colors" />
+                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-mono">42.195 km</span>
+              </div>
+            </div>
+
+            <!-- 快速預設按鈕 -->
+            <div class="flex items-center gap-2 flex-wrap text-xs">
+              <span class="text-slate-500 font-medium">常見目標：</span>
+              <button onclick="setPb('3:00')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono transition-colors">Sub 3 (3:00)</button>
+              <button onclick="setPb('3:30')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono transition-colors">Sub 330</button>
+              <button onclick="setPb('3:53')" class="px-2.5 py-1 rounded bg-cyan-900/60 text-cyan-300 border border-cyan-700/50 font-mono">3:53 (預設)</button>
+              <button onclick="setPb('4:00')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono transition-colors">Sub 4 (4:00)</button>
+              <button onclick="setPb('4:30')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono transition-colors">Sub 430</button>
+            </div>
+          </div>
+
+          <!-- 即時計算結果 -->
+          <div class="bg-slate-900/90 rounded-2xl p-5 border border-slate-800 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">計算 VDOT 跑力值</span>
+              <span id="vdot-score" class="text-3xl font-black text-cyan-400 font-mono">41.0</span>
+            </div>
+
+            <!-- 5 大配速展示格 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 font-mono text-xs">
+              <div class="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-800/40 flex items-center justify-between">
+                <div>
+                  <span class="font-bold text-emerald-400">E 配速 (輕鬆/LSD)</span>
+                  <div class="text-[10px] text-slate-400 font-sans">有氧打底與主動恢復 (~65-74%)</div>
+                </div>
+                <span id="vdot-e" class="text-sm font-bold text-emerald-300">5:44~6:21</span>
+              </div>
+
+              <div class="p-2.5 rounded-lg bg-blue-950/30 border border-blue-800/40 flex items-center justify-between">
+                <div>
+                  <span class="font-bold text-blue-400">M 配速 (馬拉松)</span>
+                  <div class="text-[10px] text-slate-400 font-sans">比賽巡航目標節奏 (~80%)</div>
+                </div>
+                <span id="vdot-m" class="text-sm font-bold text-blue-300">5:23</span>
+              </div>
+
+              <div class="p-2.5 rounded-lg bg-amber-950/30 border border-amber-800/40 flex items-center justify-between">
+                <div>
+                  <span class="font-bold text-amber-400">T 配速 (乳酸閾值)</span>
+                  <div class="text-[10px] text-slate-400 font-sans">節奏跑/抗乳酸門檻 (~88%)</div>
+                </div>
+                <span id="vdot-t" class="text-sm font-bold text-amber-300">5:00</span>
+              </div>
+
+              <div class="p-2.5 rounded-lg bg-orange-950/30 border border-orange-800/40 flex items-center justify-between">
+                <div>
+                  <span class="font-bold text-orange-400">I 配速 (間歇跑)</span>
+                  <div class="text-[10px] text-slate-400 font-sans">最大攝氧量刺激 (~98%)</div>
+                </div>
+                <span id="vdot-i" class="text-sm font-bold text-orange-300">4:35</span>
+              </div>
+
+              <div class="p-2.5 rounded-lg bg-rose-950/30 border border-rose-800/40 sm:col-span-2 flex items-center justify-between">
+                <div>
+                  <span class="font-bold text-rose-400">R 配速 (衝刺跑)</span>
+                  <div class="text-[10px] text-slate-400 font-sans">神經協調與跑姿速度經濟性 (~108%)</div>
+                </div>
+                <span id="vdot-r" class="text-sm font-bold text-rose-300">4:14</span>
+              </div>
+            </div>
+
+            <!-- 單行 Telegram 輸出摘要展示 -->
+            <div class="pt-2 border-t border-slate-800 text-[11px] text-slate-400">
+              <span class="text-slate-500 font-bold block mb-1">Telegram 單行推播效果：</span>
+              <div id="vdot-summary-preview" class="p-2 bg-black/40 rounded border border-slate-800 text-amber-300 font-mono overflow-x-auto whitespace-nowrap">
+                🎯 【VDOT 41.0 靶心配速】E 5:44~6:21 | M 5:23 | T 5:00 | I 4:35 | R 4:14
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 計算機 2：前後半程有氧解耦率 (Decoupling %) -->
+        <div class="glass-card rounded-3xl p-6 sm:p-8 border border-slate-700/80 shadow-xl relative">
+          <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-lg">
+                <i class="fa-solid fa-heart-pulse"></i>
+              </div>
+              <div>
+                <h3 class="text-xl font-bold text-slate-100">有氧解耦率 (Decoupling %)</h3>
+                <p class="text-xs text-slate-400">Joe Friel 效率因子 (EF) 模型</p>
+              </div>
+            </div>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-purple-950 text-purple-300 border border-purple-800/60 font-mono">
+              Drift Lab
+            </span>
+          </div>
+
+          <!-- 解耦率科學公式展示 (KaTeX 渲染) -->
+          <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 mb-6 text-center text-xs text-slate-300">
+            <div class="font-mono text-[11px] text-purple-300">
+              $$\text{Decoupling (\%)} = \frac{\text{EF}_1 - \text{EF}_2}{\text{EF}_1} \times 100\%$$
+            </div>
+            <div class="text-[10px] text-slate-500 mt-1">EF (效率因子) = 平均速度 (m/min) 或 功率 (W) &divide; 平均心率 (bpm)</div>
+          </div>
+
+          <!-- 輸入區域 -->
+          <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3">
+              <span class="text-xs font-bold text-cyan-400 block border-b border-slate-800 pb-1">前半程 (前 50% 距離)</span>
+              <div>
+                <label for="speed1" class="text-[10px] text-slate-400 block">速度 (m/min) 或配速換算</label>
+                <input type="number" id="speed1" value="171.4" step="0.5" class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-sm font-mono text-cyan-300 focus:outline-none" />
+                <span class="text-[9px] text-slate-500">171.4 m/min &asymp; 5:50/km</span>
+              </div>
+              <div>
+                <label for="hr1" class="text-[10px] text-slate-400 block">平均心率 (bpm)</label>
+                <input type="number" id="hr1" value="132" class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-sm font-mono text-cyan-300 focus:outline-none" />
+              </div>
+            </div>
+
+            <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3">
+              <span class="text-xs font-bold text-purple-400 block border-b border-slate-800 pb-1">後半程 (後 50% 距離)</span>
+              <div>
+                <label for="speed2" class="text-[10px] text-slate-400 block">速度 (m/min) 或配速換算</label>
+                <input type="number" id="speed2" value="171.4" step="0.5" class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-sm font-mono text-purple-300 focus:outline-none" />
+                <span class="text-[9px] text-slate-500">171.4 m/min &asymp; 5:50/km</span>
+              </div>
+              <div>
+                <label for="hr2" class="text-[10px] text-slate-400 block">平均心率 (bpm)</label>
+                <input type="number" id="hr2" value="136" class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-sm font-mono text-purple-300 focus:outline-none" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 解耦率診斷卡片 -->
+          <div class="bg-slate-900/90 rounded-2xl p-5 border border-slate-800 space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block">解耦率計算值</span>
+                <span id="decoupling-score" class="text-3xl font-black text-emerald-400 font-mono">2.94%</span>
+              </div>
+              <div id="decoupling-badge" class="px-3 py-1.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-700 text-xs font-bold">
+                極度穩定 (Elite Aerobic Base)
+              </div>
+            </div>
+            
+            <p id="decoupling-desc" class="text-xs text-slate-300 leading-relaxed font-sans pt-2 border-t border-slate-800">
+              心率漂移低於 3.0%，代表您的有氧底層基底非常扎實，在長時間配速下心血管系統幾乎無額外代償負荷！
+            </p>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= 系統架構圖與高清圖表賞析 ================= -->
+  <section id="architecture" class="py-24 relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <span class="text-xs font-bold uppercase tracking-wider text-cyan-400 bg-cyan-950/50 px-3 py-1 rounded-full border border-cyan-800/40">
+          ARCHITECTURE & TELEMETRY
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-black tracking-tight mt-3 mb-4">
+          端到端全自動化系統架構
+        </h2>
+        <p class="text-slate-400 text-sm sm:text-base">
+          以事件與排程驅動的現代化 Python 架構，分層解耦數據採集、運動生理運算、AI 提示工程與即時通訊推播。
+        </p>
+      </div>
+
+      <!-- 架構大圖展示卡片 -->
+      <div class="glass-card rounded-3xl p-4 sm:p-8 border border-slate-800 mb-16 relative overflow-hidden group">
+        <div class="relative rounded-2xl overflow-hidden cursor-pointer" onclick="openLightbox('assets/architecture.png', 'AI Coach 完整端到端系統架構圖')">
+          <img src="assets/architecture.png" alt="AI Coach System Architecture" class="w-full h-auto object-cover group-hover:scale-[1.01] transition-transform duration-300" />
+          <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+            <span class="px-4 py-2 rounded-lg bg-cyan-500 text-black text-xs font-bold flex items-center gap-2">
+              <i class="fa-solid fa-magnifying-glass-plus"></i> 點擊放大查看 16:9 高清晰度全景圖
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 張高科技遙測圖表賞析 -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Chart 1 -->
+        <div class="glass-card rounded-2xl p-4 border border-slate-800 space-y-3 cursor-pointer group" onclick="openLightbox('assets/laps_trend_chart.png', '各公里配速與心率走勢圖 (配速倒序/半程解耦分割線)')">
+          <div class="rounded-xl overflow-hidden border border-slate-700 bg-slate-950 aspect-[16/10] relative">
+            <img src="assets/laps_trend_chart.png" alt="各公里走勢圖" class="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+          </div>
+          <div>
+            <h4 class="font-bold text-slate-100 text-sm flex items-center justify-between">
+              <span>各公里配速心率雙軸走勢圖</span>
+              <i class="fa-solid fa-expand text-slate-500 group-hover:text-cyan-400 text-xs"></i>
+            </h4>
+            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+              左 Y 軸時間倒序排列、右 Y 軸心率刻度，中央清晰標繪紫色半程解耦分割線 (Halfway Split)。
+            </p>
+          </div>
+        </div>
+
+        <!-- Chart 2 -->
+        <div class="glass-card rounded-2xl p-4 border border-slate-800 space-y-3 cursor-pointer group" onclick="openLightbox('assets/acwr_chart.png', 'ACWR 負荷指針與體能監控圖 (Sweet Spot 科學量規)')">
+          <div class="rounded-xl overflow-hidden border border-slate-700 bg-slate-950 aspect-[16/10] relative">
+            <img src="assets/acwr_chart.png" alt="ACWR 量規圖" class="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+          </div>
+          <div>
+            <h4 class="font-bold text-slate-100 text-sm flex items-center justify-between">
+              <span>ACWR 負荷與體能監測圖</span>
+              <i class="fa-solid fa-expand text-slate-500 group-hover:text-cyan-400 text-xs"></i>
+            </h4>
+            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+              左側 7 天急性 vs 28 天慢性負荷對比柱狀圖，右側大尺寸狀態 Badge 與四級防受傷指針。
+            </p>
+          </div>
+        </div>
+
+        <!-- Chart 3 -->
+        <div class="glass-card rounded-2xl p-4 border border-slate-800 space-y-3 cursor-pointer group" onclick="openLightbox('assets/hr_zones_chart.png', '心率五大區間分佈 Donut 環圈圖')">
+          <div class="rounded-xl overflow-hidden border border-slate-700 bg-slate-950 aspect-[16/10] relative">
+            <img src="assets/hr_zones_chart.png" alt="心率區間分佈" class="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+          </div>
+          <div>
+            <h4 class="font-bold text-slate-100 text-sm flex items-center justify-between">
+              <span>心率區間分佈 (Z1~Z5)</span>
+              <i class="fa-solid fa-expand text-slate-500 group-hover:text-cyan-400 text-xs"></i>
+            </h4>
+            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+              科技風甜甜圈圖標示總時間，右側垂直排版各心率區間耗時與百分比，刺激能量系統一目了然。
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= 3 步極簡部署指南 (GET STARTED) ================= -->
+  <section id="deploy" class="py-24 bg-slate-950/70 border-t border-slate-800 relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <span class="text-xs font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/50 px-3 py-1 rounded-full border border-emerald-800/40">
+          ZERO-COST DEPLOYMENT
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-black tracking-tight mt-3 mb-4">
+          只需 3 個步驟，5 分鐘搞定全自動排程
+        </h2>
+        <p class="text-slate-400 text-sm sm:text-base">
+          完全不需要租用雲端主機（VPS），不需要安裝任何軟體！直接在 GitHub 上 Fork 即可終身免費運行。
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+        
+        <!-- Step 1 -->
+        <div class="glass-card rounded-3xl p-6 sm:p-8 border border-slate-700/80 relative flex flex-col justify-between">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 font-black text-lg flex items-center justify-center mb-6">
+              1
+            </div>
+            <h3 class="text-lg font-bold text-slate-100 mb-2">Fork 儲存庫</h3>
+            <p class="text-slate-400 text-xs sm:text-sm leading-relaxed mb-4">
+              前往本專案的 GitHub 頁面，點擊右上角的 <b>Fork</b> 按鈕，將代碼完整複製至您自己的 GitHub 帳號底下。
+            </p>
+          </div>
+          <a href="https://github.com/flin1009/AI_Coach/fork" target="_blank" rel="noopener noreferrer" 
+             class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold border border-slate-700 flex items-center justify-center gap-2 transition-colors">
+            <i class="fa-solid fa-code-fork"></i>
+            <span>立即前往 Fork 專案</span>
+          </a>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="glass-card rounded-3xl p-6 sm:p-8 border border-cyan-500/40 glow-cyan relative flex flex-col justify-between">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-cyan-500 text-black font-black text-lg flex items-center justify-center mb-6">
+              2
+            </div>
+            <h3 class="text-lg font-bold text-slate-100 mb-2">設定 5 大必要 Secrets</h3>
+            <p class="text-slate-400 text-xs sm:text-sm leading-relaxed mb-4">
+              在您的倉庫進入 <code class="text-cyan-300">Settings &rarr; Secrets and variables &rarr; Actions</code>，填入以下 5 項安全金鑰：
+            </p>
+            <div class="space-y-1.5 font-mono text-[11px] text-slate-300 bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+              <div class="flex justify-between"><span>GARMIN_EMAIL</span><span class="text-slate-500">Garmin 帳號</span></div>
+              <div class="flex justify-between"><span>GARMIN_PWD</span><span class="text-slate-500">Garmin 密碼</span></div>
+              <div class="flex justify-between"><span>TG_TOKEN</span><span class="text-slate-500">BotFather Token</span></div>
+              <div class="flex justify-between"><span>TG_CHAT_ID</span><span class="text-slate-500">你的 Telegram ID</span></div>
+              <div class="flex justify-between"><span>GEMINI_API_KEY</span><span class="text-slate-500">Google AI Studio</span></div>
+            </div>
+          </div>
+          <div class="text-[11px] text-emerald-400 mt-4 flex items-center gap-1.5">
+            <i class="fa-solid fa-shield-halved"></i>
+            <span>金鑰受 GitHub 銀行級加密保護</span>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="glass-card rounded-3xl p-6 sm:p-8 border border-slate-700/80 relative flex flex-col justify-between">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 font-black text-lg flex items-center justify-center mb-6">
+              3
+            </div>
+            <h3 class="text-lg font-bold text-slate-100 mb-2">啟用 Actions 自動排程</h3>
+            <p class="text-slate-400 text-xs sm:text-sm leading-relaxed mb-4">
+              點擊倉庫上方的 <b>Actions</b> 分頁，啟用工作流。每天早上 06:00 (UTC 22:00) 即會自動執行並推播！您也可以隨時點選 <b>Run workflow</b> 立即手動測試。
+            </p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
+            <i class="fa-solid fa-broom text-amber-400"></i>
+            <span>內建 <b>Cleanup</b> 工作流，可一鍵清空歷史紀錄！</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 額外跑者參數設定提示 -->
+      <div class="glass-card rounded-2xl p-6 border border-slate-800 max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg flex-shrink-0">
+            <i class="fa-solid fa-sliders"></i>
+          </div>
+          <div>
+            <h4 class="text-sm font-bold text-slate-200">選填：個人化跑者設定 (GitHub Secrets)</h4>
+            <p class="text-xs text-slate-400">可自訂 <code class="text-slate-300">RUNNER_NAME</code>、<code class="text-slate-300">RUNNER_PB</code> (如 3:53)、<code class="text-slate-300">RUNNER_BIRTH_YEAR</code> 與 <code class="text-slate-300">ZONE2_MAX_HR</code>，打造專屬您的 AI 課表。</p>
+          </div>
+        </div>
+        <a href="https://github.com/flin1009/AI_Coach#secrets-設定清單" target="_blank" rel="noopener noreferrer" 
+           class="whitespace-nowrap px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700">
+          查看完整文件 &rarr;
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= 常見問題 FAQ ================= -->
+  <section id="faq" class="py-24 relative">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <span class="text-xs font-bold uppercase tracking-wider text-cyan-400 bg-cyan-950/50 px-3 py-1 rounded-full border border-cyan-800/40">
+          FREQUENTLY ASKED QUESTIONS
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-black tracking-tight mt-3 mb-4">
+          常見問題解答
+        </h2>
+        <p class="text-slate-400 text-sm sm:text-base">
+          關於安全性、成本、API 與排程的所有疑問。
+        </p>
+      </div>
+
+      <div class="space-y-4">
+        
+        <!-- FAQ 1 -->
+        <details class="glass-card rounded-2xl p-5 border border-slate-800 group" open>
+          <summary class="font-bold text-slate-200 cursor-pointer list-none flex items-center justify-between">
+            <span class="flex items-center gap-3">
+              <i class="fa-solid fa-circle-question text-cyan-400"></i>
+              <span>真的完全不需要支付任何費用嗎？</span>
+            </span>
+            <i class="fa-solid fa-chevron-down text-xs text-slate-500 group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <p class="mt-3 text-xs sm:text-sm text-slate-400 leading-relaxed pl-7">
+            是的，<b>100% 免費</b>！GitHub Actions 每月提供 2,000 分鐘的免費 CI/CD 執行時間（本程式每日僅需跑 30~50 秒）；Google Gemini API 亦提供免費額度（每日足夠使用數百次）；Open-Meteo 天氣查詢無需金鑰完全開源免費。
+          </p>
+        </details>
+
+        <!-- FAQ 2 -->
+        <details class="glass-card rounded-2xl p-5 border border-slate-800 group">
+          <summary class="font-bold text-slate-200 cursor-pointer list-none flex items-center justify-between">
+            <span class="flex items-center gap-3">
+              <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+              <span>我的 Garmin 帳號密碼安全嗎？</span>
+            </span>
+            <i class="fa-solid fa-chevron-down text-xs text-slate-500 group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <p class="mt-3 text-xs sm:text-sm text-slate-400 leading-relaxed pl-7">
+            非常安全。所有帳號密碼都是儲存在您個人私有的 GitHub Repository Secrets 中，經由 GitHub 伺服器進行非對稱非對稱加密（Asymmetric Encryption）。程式碼為 100% 開源純 Python，直接從 GitHub 虛擬機連線至 Garmin 官方，絕不經過任何第三方中繼伺服器。
+          </p>
+        </details>
+
+        <!-- FAQ 3 -->
+        <details class="glass-card rounded-2xl p-5 border border-slate-800 group">
+          <summary class="font-bold text-slate-200 cursor-pointer list-none flex items-center justify-between">
+            <span class="flex items-center gap-3">
+              <i class="fa-solid fa-calendar-day text-purple-400"></i>
+              <span>如果我今天休息沒有跑步，系統還會發送日報嗎？</span>
+            </span>
+            <i class="fa-solid fa-chevron-down text-xs text-slate-500 group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <p class="mt-3 text-xs sm:text-sm text-slate-400 leading-relaxed pl-7">
+            會的！系統內建 36 小時判定機制。若最近沒有新運動，系統會自動轉發「<b>今日休整與超補償日報</b>」，統計您近 7 筆的累積跑量與負荷，由 AI 教練提供滾筒伸展、電解質修復處方與明日重啟課表預告，絕不重複發送舊活動，維持每日晨間儀式感。
+          </p>
+        </details>
+
+        <!-- FAQ 4 -->
+        <details class="glass-card rounded-2xl p-5 border border-slate-800 group">
+          <summary class="font-bold text-slate-200 cursor-pointer list-none flex items-center justify-between">
+            <span class="flex items-center gap-3">
+              <i class="fa-solid fa-clock text-amber-400"></i>
+              <span>我可以更改每日推播的時間嗎？</span>
+            </span>
+            <i class="fa-solid fa-chevron-down text-xs text-slate-500 group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <p class="mt-3 text-xs sm:text-sm text-slate-400 leading-relaxed pl-7">
+            可以。只需編輯倉庫中的 <code class="text-cyan-300">.github/workflows/daily_task.yml</code> 檔案，修改裡面的 <code class="text-amber-300">cron: '0 22 * * *'</code> 即可（注意 GitHub 採用 UTC 時間，台灣時間需減去 8 小時，例如台灣早上 06:00 對應 UTC 22:00）。
+          </p>
+        </details>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= 頁尾 FOOTER ================= -->
+  <footer class="border-t border-slate-800/80 bg-slate-950 py-12 text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+        
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-emerald-400 flex items-center justify-center text-black font-bold">
+            🏃
+          </div>
+          <div>
+            <div class="font-bold text-slate-300">AI Coach - 馬拉松個人化 AI 助教</div>
+            <div class="text-[11px] text-slate-500">Open-Source Project licensed under MIT License</div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-6">
+          <a href="https://github.com/flin1009/AI_Coach" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">
+            <i class="fa-brands fa-github text-base mr-1"></i> GitHub Repository
+          </a>
+          <a href="https://github.com/flin1009/AI_Coach/issues" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">
+            回報問題 / Issue
+          </a>
+          <a href="#telegram" class="hover:text-slate-300 transition-colors">
+            實機預覽
+          </a>
+        </div>
+
+      </div>
+
+      <div class="mt-8 pt-8 border-t border-slate-900 text-center text-[11px] text-slate-600 leading-relaxed">
+        免責聲明：本專案為非官方開源工具，所有商標（Garmin、Google Gemini、Open-Meteo、Telegram）均屬各自版權所有者。運動訓練具備一定風險，建議在專業醫師或教練指引下安全訓練。
+      </div>
+    </div>
+  </footer>
+
+  <!-- ================= 圖片燈箱互動彈窗 (LIGHTBOX MODAL) ================= -->
+  <div id="lightbox-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden flex items-center justify-center p-4" onclick="closeLightbox()">
+    <div class="relative max-w-5xl w-full max-h-[90vh] flex flex-col items-center" onclick="event.stopPropagation()">
+      <button onclick="closeLightbox()" class="absolute -top-12 right-0 text-slate-400 hover:text-white text-2xl p-2 focus:outline-none" aria-label="關閉預覽">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <img id="lightbox-img" src="" alt="預覽圖" class="max-w-full max-h-[80vh] rounded-xl border border-slate-800 shadow-2xl object-contain" />
+      <div id="lightbox-caption" class="mt-3 text-sm text-slate-300 font-medium text-center"></div>
+    </div>
+  </div>
+
+  <!-- ================= JAVASCRIPT 互動邏輯 ================= -->
+  <script>
+    // 1. 手機漢堡選單切換
+    const menuBtn = document.getElementById('mobile-menu-btn');
+    const mobileMenu = document.getElementById('mobile-menu');
+    menuBtn.addEventListener('click', () => {
+      mobileMenu.classList.toggle('hidden');
+    });
+
+    // 2. Telegram 日報切換 (運動日 vs 休整日)
+    const tabWorkout = document.getElementById('tab-workout');
+    const tabRest = document.getElementById('tab-rest');
+    const contentWorkout = document.getElementById('content-workout');
+    const contentRest = document.getElementById('content-rest');
+
+    tabWorkout.addEventListener('click', () => {
+      tabWorkout.className = "px-5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all bg-gradient-to-r from-cyan-500 to-emerald-500 text-black shadow-md";
+      tabRest.className = "px-5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all text-slate-400 hover:text-slate-200";
+      contentWorkout.classList.remove('hidden');
+      contentRest.classList.add('hidden');
+    });
+
+    tabRest.addEventListener('click', () => {
+      tabRest.className = "px-5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all bg-gradient-to-r from-cyan-500 to-emerald-500 text-black shadow-md";
+      tabWorkout.className = "px-5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all text-slate-400 hover:text-slate-200";
+      contentRest.classList.remove('hidden');
+      contentWorkout.classList.add('hidden');
+    });
+
+    // 3. 丹尼爾 VDOT 試算邏輯 (精準移植自 Python utils.py)
+    function parseMarathonPb(pbStr) {
+      if (!pbStr) return 233.0; // 預設 3:53 = 233 分鐘
+      const parts = pbStr.trim().split(':').map(Number);
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        return parts[0] * 60.0 + parts[1];
+      } else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        return parts[0] * 60.0 + parts[1] + parts[2] / 60.0;
+      }
+      return 233.0;
+    }
+
+    function calculateVDOT(distanceM, timeMinutes) {
+      if (timeMinutes <= 0 || distanceM <= 0) return 40.0;
+      const v = distanceM / timeMinutes; // m/min
+      const vo2 = -4.60 + 0.182258 * v + 0.000104 * (v ** 2);
+      const p = 0.8 + 0.1894393 * Math.exp(-0.012778 * timeMinutes) + 0.2989558 * Math.exp(-0.1932605 * timeMinutes);
+      return vo2 / p;
+    }
+
+    function vdotToPace(vdot, intensityFraction) {
+      const targetVo2 = vdot * intensityFraction;
+      const a = 0.000104;
+      const b = 0.182258;
+      const c = -(4.60 + targetVo2);
+      const discriminant = b * b - 4 * a * c;
+      if (discriminant < 0) return "N/A";
+      const v = (-b + Math.sqrt(discriminant)) / (2 * a);
+      if (v <= 0) return "N/A";
+      const secPerKm = 60000.0 / v;
+      let m = Math.floor(secPerKm / 60);
+      let s = Math.round(secPerKm % 60);
+      if (s === 60) { m += 1; s = 0; }
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    function updateVDOTUI() {
+      const pbVal = document.getElementById('pb-input').value;
+      const timeMin = parseMarathonPb(pbVal);
+      const vdot = calculateVDOT(42195, timeMin);
+      const vdotRound = vdot.toFixed(1);
+
+      const eFast = vdotToPace(vdot, 0.74);
+      const eSlow = vdotToPace(vdot, 0.65);
+      const mPace = vdotToPace(vdot, 0.80);
+      const tPace = vdotToPace(vdot, 0.88);
+      const iPace = vdotToPace(vdot, 0.98);
+      const rPace = vdotToPace(vdot, 1.08);
+
+      document.getElementById('vdot-score').innerText = vdotRound;
+      document.getElementById('vdot-e').innerText = `${eFast}~${eSlow}`;
+      document.getElementById('vdot-m').innerText = mPace;
+      document.getElementById('vdot-t').innerText = tPace;
+      document.getElementById('vdot-i').innerText = iPace;
+      document.getElementById('vdot-r').innerText = rPace;
+
+      document.getElementById('vdot-summary-preview').innerText = 
+        `🎯 【VDOT ${vdotRound} 靶心配速】E ${eFast}~${eSlow} | M ${mPace} | T ${tPace} | I ${iPace} | R ${rPace}`;
+    }
+
+    function setPb(pbStr) {
+      document.getElementById('pb-input').value = pbStr;
+      updateVDOTUI();
+    }
+
+    document.getElementById('pb-input').addEventListener('input', updateVDOTUI);
+
+    // 4. 前後半程有氧解耦率 (Decoupling %) 試算邏輯
+    function updateDecouplingUI() {
+      const s1 = parseFloat(document.getElementById('speed1').value) || 171.4;
+      const hr1 = parseFloat(document.getElementById('hr1').value) || 132;
+      const s2 = parseFloat(document.getElementById('speed2').value) || 171.4;
+      const hr2 = parseFloat(document.getElementById('hr2').value) || 136;
+
+      const ef1 = s1 / hr1;
+      const ef2 = s2 / hr2;
+      const decoupling = ((ef1 - ef2) / ef1) * 100.0;
+      const scoreElem = document.getElementById('decoupling-score');
+      const badgeElem = document.getElementById('decoupling-badge');
+      const descElem = document.getElementById('decoupling-desc');
+
+      scoreElem.innerText = `${decoupling.toFixed(2)}%`;
+
+      if (decoupling < 3.0) {
+        scoreElem.className = "text-3xl font-black text-emerald-400 font-mono";
+        badgeElem.className = "px-3 py-1.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-700 text-xs font-bold";
+        badgeElem.innerText = "極度穩定 (Elite Aerobic Base)";
+        descElem.innerText = "心率漂移低於 3.0%，代表您的有氧底層基底非常扎實，在長時間配速下心血管系統幾乎無額外代償負荷！";
+      } else if (decoupling <= 5.0) {
+        scoreElem.className = "text-3xl font-black text-cyan-400 font-mono";
+        badgeElem.className = "px-3 py-1.5 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-700 text-xs font-bold";
+        badgeElem.innerText = "最佳適應 (Well-Trained)";
+        descElem.innerText = "解耦率介於 3.0%~5.0%，心率與配速保持良好的動態平衡，具備相當優秀的馬拉松專項耐力。";
+      } else if (decoupling <= 8.0) {
+        scoreElem.className = "text-3xl font-black text-amber-400 font-mono";
+        badgeElem.className = "px-3 py-1.5 rounded-lg bg-amber-950 text-amber-300 border border-amber-700 text-xs font-bold";
+        badgeElem.innerText = "輕度漂移 (Moderate Drift)";
+        descElem.innerText = "後半程出現輕度心率漂移，可能是肌耐力衰退、環境溫度偏高或微脫水所致，建議訓練中注意水分與電解質補充。";
+      } else {
+        scoreElem.className = "text-3xl font-black text-rose-400 font-mono";
+        badgeElem.className = "px-3 py-1.5 rounded-lg bg-rose-950 text-rose-300 border border-rose-700 text-xs font-bold";
+        badgeElem.innerText = "顯著解耦 (High Drift)";
+        descElem.innerText = "解耦率超過 8.0%，體能呈現顯著超載或嚴重脫水，此強度已超出純有氧代謝負擔，AI 教練會建議下調配速或提早減量。";
+      }
+    }
+
+    ['speed1', 'hr1', 'speed2', 'hr2'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateDecouplingUI);
+    });
+
+    // 5. 圖片燈箱 Lightbox 功能
+    function openLightbox(src, caption) {
+      document.getElementById('lightbox-img').src = src;
+      document.getElementById('lightbox-caption').innerText = caption;
+      document.getElementById('lightbox-modal').classList.remove('hidden');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox-modal').classList.add('hidden');
+    }
+
+    // ESC 關閉燈箱
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeLightbox();
+    });
+
+    // 初始化計算
+    updateVDOTUI();
+    updateDecouplingUI();
+  </script>
+
+</body>
+</html>
