@@ -214,9 +214,10 @@ AI_Coach/
 │       ├── daily_task.yml       # GitHub Actions 每日排程與自動化環境
 │       ├── test_calendar.yml    # 目標賽事與行事曆手動一鍵驗證工作流
 │       └── cleanup_runs.yml     # 一鍵清空所有 Actions 歷史執行紀錄工作流
-├── docs/                        # GitHub Pages 官方形象與互動介紹網站
+├── docs/                        # GitHub Pages 官方形象與互動介紹網站 (支援繁中/英文切換)
 │   ├── assets/                  # 網站專用高解析度架構圖與遙測圖表
-│   └── index.html               # 專案官網 (Tailwind CSS + VDOT/解耦率線上試算)
+│   ├── index.html               # 繁體中文官網 (Tailwind CSS + VDOT/解耦率線上試算)
+│   └── en.html                  # 英文版官網 (English Landing Page with Interactive Lab)
 ├── config.py                    # 集中管理 Secrets 環境變數與跑者個人化參數
 ├── utils.py                     # VDOT 跑力、有氧解耦率、目標賽事倒數、ACWR 與生理恢復運算工具
 ├── weather_service.py           # Open-Meteo 氣象 API 連線與歷史小時氣候模組
@@ -407,7 +408,7 @@ on:
 
 ### 🌐 啟用 GitHub Pages 專案形象官網 (Enable GitHub Pages)
 
-本專案於 `docs/` 資料夾內建現代科技運動風之專案介紹形象官網（含手機實機日報切換、VDOT 跑力與有氧解耦率即時線上試算機）。只需以下步驟即可免費啟用：
+本專案於 `docs/` 資料夾內建現代科技運動風之專案介紹形象官網（**支援繁體中文與 English 英文版雙向即時切換**，含手機實機日報切換、VDOT 跑力與有氧解耦率即時線上試算機）。只需以下步驟即可免費啟用：
 
 1. 前往 GitHub 儲存庫頁面，點選上方的 **「Settings」**。
 2. 在左側側邊欄點選 **「Pages」**。
