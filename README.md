@@ -36,7 +36,7 @@ flowchart TB
 
         subgraph G_CORE["⚙️ 核心調度中心 (Orchestrator)"]
             direction TB
-            MAIN["<b>main.py</b><br/>主流程調度引擎<br/>36h 課表/休整日判定"]
+            MAIN["<b>main.py</b><br/>主流程調度引擎<br/>26h 課表/休整日判定"]
             CONF["<b>config.py</b><br/>Secrets & 跑者設定"]
             UTIL["<b>utils.py</b><br/>ACWR / VDOT / 賽事倒數"]
         end

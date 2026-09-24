@@ -89,11 +89,11 @@ def run_main_task():
 
         latest_act = activities[0]
         start_time_str = latest_act.get('startTimeLocal', '')
-        is_recent, diff_hours = check_activity_recency(start_time_str, max_hours=36)
+        is_recent, diff_hours = check_activity_recency(start_time_str, max_hours=26)
 
-        # 若最新活動距今超過 36 小時，自動切換為【休整與超補償日報】模式
+        # 若最新活動距今超過 26 小時，自動切換為【休整與超補償日報】模式
         if not is_recent:
-            print(f"🌿 最新活動距今約 {diff_hours:.1f} 小時 (> 36h)，切換為【今日休整與體能恢復日報】模式...")
+            print(f"🌿 最新活動距今約 {diff_hours:.1f} 小時 (> 26h)，切換為【今日休整與體能恢復日報】模式...")
             days_ago = int(diff_hours // 24)
             hours_ago = int(diff_hours % 24)
             time_ago_str = f"{days_ago} 天 {hours_ago} 小時前" if days_ago > 0 else f"{hours_ago} 小時前"

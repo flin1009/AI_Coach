@@ -111,8 +111,8 @@ def format_laps_table(laps):
         lines.append(f"  - L{l_idx+1:02d}: {l_pace} | {l_hr}bpm | {l_elev}m | {l_cad}spm | {l_time}")
     return "\n".join(lines)
 
-def check_activity_recency(start_time_str, max_hours=36):
-    """檢查最新活動是否在指定小時內 (預設 36 小時)，並回傳 (is_recent, diff_hours)"""
+def check_activity_recency(start_time_str, max_hours=26):
+    """檢查最新活動是否在指定小時內 (預設 26 小時，適用於每日固定清晨排程判讀前晚訓練)，並回傳 (is_recent, diff_hours)"""
     if not start_time_str:
         return False, 999.0
     try:
