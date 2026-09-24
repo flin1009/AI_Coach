@@ -50,7 +50,8 @@ def fetch_daily_recovery_metrics(client, target_date=None):
     優雅降級：若無數據或 API 拋出異常，一律安全回傳 None，絕不影響主任務。
     """
     if not target_date:
-        target_date = datetime.date.today().isoformat()
+        tw_today = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)).date()
+        target_date = tw_today.isoformat()
     
     try:
         summary = {}
@@ -68,7 +69,8 @@ def fetch_daily_recovery_metrics(client, target_date=None):
         # 若今日數據尚早未完全同步，嘗試檢索昨日摘要作為備援
         if not summary.get("restingHeartRate"):
             try:
-                yest = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+                tw_today = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)).date()
+                yest = (tw_today - datetime.timedelta(days=1)).isoformat()
                 yest_summary = client.get_user_summary(yest) or {}
                 if yest_summary.get("restingHeartRate"):
                     summary["restingHeartRate"] = yest_summary.get("restingHeartRate")
