@@ -23,7 +23,7 @@ def test_calendar():
         print("❌ 未提供帳號密碼，無法登入 Garmin。")
         return
 
-    print(f"🔐 正在連線登入 Garmin ({email})...")
+    print("🔐 正在連線登入 Garmin...")
     try:
         client = Garmin(email, pwd)
         client.login()
@@ -97,7 +97,7 @@ def test_calendar():
             print(f"      日期: {date}")
             print(f"      距離: {dist_str}")
             print(f"      類型: {item_type}")
-            print(f"      詳細數據: {ev}")
+            print(f"      賽事 ID: {ev.get('id') or ev.get('eventId')}")
             print("-" * 50)
     else:
         print("ℹ️ 在這幾個月的行事曆中，目前沒有標記為 'event' 的賽事。")
