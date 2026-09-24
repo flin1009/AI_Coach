@@ -209,7 +209,8 @@ AI_Coach/
 ├── .github/
 │   └── workflows/
 │       ├── daily_task.yml       # GitHub Actions 每日排程與自動化環境
-│       └── test_calendar.yml    # 目標賽事與行事曆手動一鍵驗證工作流
+│       ├── test_calendar.yml    # 目標賽事與行事曆手動一鍵驗證工作流
+│       └── cleanup_runs.yml     # 一鍵清空所有 Actions 歷史執行紀錄工作流
 ├── config.py                    # 集中管理 Secrets 環境變數與跑者個人化參數
 ├── utils.py                     # VDOT 跑力、有氧解耦率、目標賽事倒數、ACWR 與生理恢復運算工具
 ├── weather_service.py           # Open-Meteo 氣象 API 連線與歷史小時氣候模組
