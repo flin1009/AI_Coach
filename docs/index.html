@@ -271,7 +271,7 @@
                   <div class="text-[10px] text-emerald-400/90 font-medium">bot • 線上</div>
                 </div>
               </div>
-              <div class="text-right text-[11px] text-slate-500 font-mono">06:00 AM</div>
+              <div class="text-right text-[11px] text-slate-500 font-mono">04:00 AM</div>
             </div>
 
             <!-- 動態內容展示容器 (運動日 vs 休整日) -->
@@ -342,7 +342,7 @@
 
                 <!-- 訊息 2：Gemini AI 建議 -->
                 <div class="bg-[#182333] p-4 rounded-2xl rounded-tl-sm border border-sky-800/40 shadow-sm">
-                  <div class="flex items-center justify-between text-sky-300 font-semibold mb-2 pb-1.5 border-b border-slate-750">
+                  <div class="flex items-center justify-between text-sky-300 font-semibold mb-2 pb-1.5 border-b border-slate-755">
                     <span>🤖 【Gemini AI 教練建議】</span>
                     <span class="text-[10px] text-slate-400 font-normal">訊息 2/2</span>
                   </div>
@@ -351,7 +351,7 @@
                     <p><b>2. 有氧解耦診斷：</b> 今日有氧解耦率為 <b>3.2%</b>（屬於最佳適應區間），心率未見明顯漂移，代表基礎有氧耐力非常扎實，在 24°C 氣溫下體溫調節良好。</p>
                     <p><b>3. 備賽週期分析：</b> 距離長榮半馬僅剩 32 天（進入專項準備期第二階段），當前 ACWR 1.14 處於絕佳體能吸收階段，無過度疲勞跡象。</p>
                     <div class="bg-[#131d2a] p-2.5 rounded-lg border border-sky-800/30 text-sky-200">
-                      <b>🎯 【明日具體訓練菜單】</b><br/>
+                      <b>🎯 【今日具體訓練菜單】</b><br/>
                       • 課表類型：E 配速主動恢復跑<br/>
                       • 目標距離：6.0 公里<br/>
                       • 靶心配速：嚴格維持在 <b>5:32 ~ 6:08 /km</b><br/>
@@ -396,7 +396,7 @@
                     <p><b>2. 今日主動恢復處方：</b> 建議進行 15 分鐘泡沫軸滾筒筋膜放鬆（重點在小腿後肌群與大腿股四頭肌），搭配 20 分鐘核心肌群低強度等長支撐，毋需額外進行心肺耗竭運動。</p>
                     <p><b>3. 補給建議：</b> 補足每公斤體重 35ml 水分，並攝取優質蛋白質（豆漿、雞肉、水煮蛋）幫助肌纖維修復。</p>
                     <div class="bg-[#131d2a] p-2.5 rounded-lg border border-emerald-800/30 text-emerald-200">
-                      <b>🎯 【明日重啟課表預告】</b><br/>
+                      <b>🎯 【今日休整指引與重啟課表預告】</b><br/>
                       • 預計課表：8km 漸進配速跑 (Progressive Run)<br/>
                       • 配速規劃：前 5km E 配速 (6:00/km) &rarr; 後 3km 提升至 M 配速 (5:20/km)。
                     </div>
@@ -972,7 +972,7 @@
             <i class="fa-solid fa-chevron-down text-xs text-slate-500 group-open:rotate-180 transition-transform"></i>
           </summary>
           <p class="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed pl-6">
-            會的！系統內建 36 小時判定機制。若最近沒有新運動，系統會自動轉發「<b>今日休整與超補償日報</b>」，統計您近 7 筆的累積跑量與負荷，由 AI 教練提供滾筒伸展、電解質修復處方與明日重啟課表預告，絕不重複發送舊活動，維持每日晨間儀式感。
+            會的！系統內建 36 小時判定機制。若最近沒有新運動，系統會自動轉發「<b>今日休整與超補償日報</b>」，統計您近 7 筆的累積跑量與負荷，由 AI 教練提供滾筒伸展、電解質修復處方與下次重啟課表建議，絕不重複發送舊活動，維持每日晨間儀式感。
           </p>
         </details>
 
@@ -986,7 +986,7 @@
             <i class="fa-solid fa-chevron-down text-xs text-slate-500 group-open:rotate-180 transition-transform"></i>
           </summary>
           <p class="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed pl-6">
-            可以。只需編輯倉庫中的 <code class="text-sky-300">.github/workflows/daily_task.yml</code> 檔案，修改裡面的 <code class="text-amber-300">cron: '0 22 * * *'</code> 即可（注意 GitHub 採用 UTC 時間，台灣時間需減去 8 小時，例如台灣早上 06:00 對應 UTC 22:00）。
+            可以。只需編輯倉庫中的 <code class="text-sky-300">.github/workflows/daily_task.yml</code> 檔案，修改裡面的 <code class="text-amber-300">cron</code> 表達式即可（預設為 UTC 19:55，即台灣時間清晨約 03:55 ~ 04:00 晨跑前送達；注意 GitHub 採用 UTC 時間，台灣時間需減去 8 小時）。
           </p>
         </details>
 
