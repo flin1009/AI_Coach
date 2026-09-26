@@ -1,11 +1,20 @@
 # 🏃 AI Coach - 個人化智慧馬拉松 AI 教練
 
+<p align="center">
+  <b>繁體中文</b> | <a href="README_EN.md">English</a>
+</p>
+
+<div align="center">
+
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-Automated-green.svg)](https://github.com/features/actions)
 [![Garmin Connect](https://img.shields.io/badge/Garmin-Connect_API-007cc3.svg)](https://connect.garmin.com/)
 [![Google Gemini](https://img.shields.io/badge/Google_Gemini-Flash_AI-orange.svg)](https://ai.google.dev/)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-Bot_Push-24A1DE.svg)](https://telegram.org/)
 [![Website](https://img.shields.io/badge/Website-GitHub_Pages-2ea44f.svg)](https://flin1009.github.io/AI_Coach/)
+[![English Docs](https://img.shields.io/badge/Language-English-blue.svg)](README_EN.md)
+
+</div>
 
 > 🌐 **專案官方形象與互動介紹網站**：[https://flin1009.github.io/AI_Coach/](https://flin1009.github.io/AI_Coach/)（支援手機實機報表預覽、VDOT 跑力與有氧解耦率即時線上試算）
 
@@ -228,7 +237,8 @@ AI_Coach/
 ├── main.py                      # 系統主協調調度核心引擎（GitHub Actions 執行入口點）
 ├── test_garmin_calendar.py      # 本機/雲端行事曆與目標賽事診斷測試腳本
 ├── .gitignore                   # Git 排除清單（忽略敏感檔案、快取、虛擬環境與本機記錄）
-└── README.md                    # 專案詳細介紹與架構文檔
+├── README.md                    # 專案詳細介紹與架構文檔 (繁體中文)
+└── README_EN.md                 # 英文版說明文檔 (English Documentation)
 ```
 
 ---
