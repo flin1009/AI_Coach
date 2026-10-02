@@ -12,20 +12,22 @@
 [![Google Gemini](https://img.shields.io/badge/Google_Gemini-Flash_AI-orange.svg)](https://ai.google.dev/)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-Bot_Push-24A1DE.svg)](https://telegram.org/)
 [![Website](https://img.shields.io/badge/Website-GitHub_Pages-2ea44f.svg)](https://flin1009.github.io/AI_Coach/en.html)
-[![Traditional Chinese Docs](https://img.shields.io/badge/Docs-繁體中文-brightgreen.svg)](README.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/flin1009/AI_Coach?style=social)](https://github.com/flin1009/AI_Coach/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/flin1009/AI_Coach?style=social)](https://github.com/flin1009/AI_Coach/network/members)
 
 </div>
 
 > 🌐 **Official Interactive Showcase Website**: [https://flin1009.github.io/AI_Coach/en.html](https://flin1009.github.io/AI_Coach/en.html) (Features mobile Telegram report preview, live VDOT running formula calculator & aerobic decoupling laboratory)
 
-**AI Coach** is a fully automated training diagnosis and prescription system designed for endurance runners. Scheduled daily via **GitHub Actions**, it automatically syncs **Garmin Connect** running and cross-training metrics, tracks **upcoming races within 90 days**, fetches on-the-spot historical temperature & humidity from **Open-Meteo**, and leverages **Google Gemini AI** (equipped with multi-model automatic failover) to conduct "7-activity micro-cycle workload evaluations", "race periodization analysis", and "comprehensive deep-dive workout diagnostics". It synthesizes an adaptive daily workout menu with exact target paces and distances, pushing structured telemetry reports directly to the runner's **Telegram**.
+**AI Coach** is a fully automated, serverless marathon training diagnosis and prescription system engineered for endurance runners. Operating on a scheduled daily pipeline via **GitHub Actions** (100% zero-server cost), it automatically synchronizes running metrics and lap telemetries from **Garmin Connect**, tracks **upcoming target races within 90 days**, fetches on-the-spot historical temperature and humidity from **Open-Meteo**, and leverages **Google Gemini AI** (featuring multi-model automated failover). By synthesizing **Jack Daniels' VDOT running formula**, **Acute:Chronic Workload Ratio (ACWR)**, and **Joe Friel's Aerobic Decoupling %**, it generates an adaptive daily workout prescription with exact target paces and distances, dispatching dual-track structured telemetry reports and 3 high-resolution visualization charts directly to the runner's **Telegram**.
 
 ---
 
 ## 📐 System Architecture
 
 <div align="center">
-  <img src="assets/architecture.png" alt="AI Coach System Architecture" width="100%" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
+  <img src="assets/architecture.png" alt="Garmin Connect Marathon AI Coach System Architecture with Google Gemini, Open-Meteo, VDOT and Telegram Bot" width="100%" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
 </div>
 
 <br/>
@@ -415,6 +417,21 @@ This repository includes a standalone, mobile-responsive showcase website in the
 
 ---
 
+## ⭐ Support & Community (Star History)
+
+If you find this project helpful for your marathon training, race preparation, or sports science development, please consider giving it a **Star ⭐️**!  
+Your encouragement keeps this open-source project actively maintained and evolving.
+
+[![Star History Chart](https://api.star-history.com/svg?repos=flin1009/AI_Coach&type=Date)](https://star-history.com/#flin1009/AI_Coach&Date)
+
+---
+
+## 🏷️ Keywords & Search Topics
+
+`#Garmin` `#GarminConnect` `#Marathon` `#MarathonTraining` `#Running` `#VDOT` `#JackDaniels` `#ACWR` `#AerobicDecoupling` `#SportsScience` `#GoogleGemini` `#Gemini25Flash` `#TelegramBot` `#OpenMeteo` `#GitHubActions` `#Python` `#Endurance` `#RunningCalculator` `#WorkoutPrescription` `#Automation`
+
+---
+
 ## ⚠️ Disclaimer
 
 * This project is an unofficial open-source tool developed for endurance sports enthusiasts. AI-generated analyses and training prescriptions are for informational and educational purposes only.
@@ -425,3 +442,4 @@ This repository includes a standalone, mobile-responsive showcase website in the
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
+

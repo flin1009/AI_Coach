@@ -1,4 +1,4 @@
-# 🏃 AI Coach - 個人化智慧馬拉松 AI 教練
+# 🏃 AI Coach - 個人化智慧馬拉松 AI 教練 (Personalized Marathon AI Coach)
 
 <p align="center">
   <b>繁體中文</b> | <a href="README_EN.md">English</a>
@@ -12,20 +12,22 @@
 [![Google Gemini](https://img.shields.io/badge/Google_Gemini-Flash_AI-orange.svg)](https://ai.google.dev/)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-Bot_Push-24A1DE.svg)](https://telegram.org/)
 [![Website](https://img.shields.io/badge/Website-GitHub_Pages-2ea44f.svg)](https://flin1009.github.io/AI_Coach/)
-[![English Docs](https://img.shields.io/badge/Language-English-blue.svg)](README_EN.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/flin1009/AI_Coach?style=social)](https://github.com/flin1009/AI_Coach/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/flin1009/AI_Coach?style=social)](https://github.com/flin1009/AI_Coach/network/members)
 
 </div>
 
 > 🌐 **專案官方形象與互動介紹網站**：[https://flin1009.github.io/AI_Coach/](https://flin1009.github.io/AI_Coach/)（支援手機實機報表預覽、VDOT 跑力與有氧解耦率即時線上試算）
 
-**AI Coach** 是一個專為耐力跑者打造的「全自動化智慧訓練診斷系統」。系統每日透過 **GitHub Actions** 定時排程自動執行，主動調閱 **Garmin Connect** 最新跑步與交叉訓練數據、**三個月內目標賽事倒數**，整合 **Open-Meteo** 活動當下之精準歷史溫濕度氣象，並透過 **Google Gemini AI**（具備多模型自動降級備援技術）進行「7 筆微週期訓練負荷評估」、「目標賽事備賽週期分析」與「最新課表全維度深層解剖」，綜合開立包含精確配速與距離的「每日具體訓練菜單」，最終將結構化的診斷報告與個人化訓練建議直接推播至跑者的 **Telegram**。
+**AI Coach** 是一個專為全馬、半馬與耐力跑者打造的「**全自動化智慧訓練診斷與課表開立系統**」。系統每日透過 **GitHub Actions** 定時全自動排程執行（零伺服器成本），主動同步 **Garmin Connect** 跑步遙測數據與**近 90 天目標賽事倒數**，結合 **Open-Meteo** 當下歷史精準溫濕度氣象，透過 **Google Gemini AI**（搭載 Flash 多模型自動降級容錯技術）深度融合「**丹尼爾博士 VDOT 跑力公式 (Jack Daniels' Running Formula)**」、「**ACWR 急慢性負荷比 (Acute:Chronic Workload Ratio)**」、「**Joe Friel 前後半程有氧解耦率 (Aerobic Decoupling %)**」與微週期訓練脈絡，每日綜合產出靶心配速、體能評估與客製化訓練菜單，並自動推播雙軌排版日報與 3 張高解析度圖表至跑者的 **Telegram**。
 
 ---
 
 ## 📐 系統架構圖 (System Architecture)
 
 <div align="center">
-  <img src="assets/architecture.png" alt="AI Coach System Architecture" width="100%" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
+  <img src="assets/architecture.png" alt="Garmin Connect Marathon AI Coach System Architecture with Google Gemini, Open-Meteo, VDOT and Telegram Bot" width="100%" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
 </div>
 
 <br/>
@@ -430,6 +432,21 @@ on:
 
 ---
 
+## ⭐ 支持與社群 (Star & Community)
+
+如果你覺得這個專案對你的日常跑步訓練、備賽或運動科技開發有所啟發，歡迎為這個專案點亮一顆 **Star ⭐️**！  
+你的支持是持續優化演算法、導入更多運動科學模型與維護開源社群的最大動力！
+
+[![Star History Chart](https://api.star-history.com/svg?repos=flin1009/AI_Coach&type=Date)](https://star-history.com/#flin1009/AI_Coach&Date)
+
+---
+
+## 🏷️ 關鍵字索引 (Topics & Keywords)
+
+`#Garmin` `#GarminConnect` `#Marathon` `#MarathonTraining` `#Running` `#VDOT` `#JackDaniels` `#ACWR` `#AerobicDecoupling` `#SportsScience` `#GoogleGemini` `#Gemini25Flash` `#TelegramBot` `#OpenMeteo` `#GitHubActions` `#Python` `#Endurance` `#RunningCalculator` `#WorkoutPrescription` `#Automation` `#馬拉松訓練` `#跑步教練` `#運動科學`
+
+---
+
 ## ⚠️ 免責聲明 (Disclaimer)
 
 * 本專案為個人運動愛好者之智慧輔助工具，AI 教練之分析與處方建議僅供運動訓練參考。
@@ -440,3 +457,4 @@ on:
 ## 📄 授權 (License)
 
 本專案採用 [MIT License](LICENSE) 授權。
+
