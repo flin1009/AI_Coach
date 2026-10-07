@@ -38,39 +38,94 @@ def get_genai_client():
     return genai.Client(api_key=GEMINI_API_KEY)
 
 def detect_candidate_models(client):
-    """自動偵測可用 Flash 模型，並由新到舊排序保留前 3 名候選備援"""
-    default_model = "models/gemini-flash-latest"
+    """
+    自動偵測可用 Flash 模型，採用「跨世代多梯隊備援 (Cross-Generation Tiered Fallback)」：
+    - 梯隊 1 (前瞻嘗鮮)：動態掃描到的最高世代模型 (例如 3.x 世代最新款)
+    - 梯隊 2 (旗艦生產主力)：gemini-2.5-flash (經千錘百鍊的成熟主力)
+    - 梯隊 3 (成熟備援)：gemini-2.0-flash (不同 TPU 機房集群，隔離 503 尖峰)
+    - 梯隊 4 (經典高可用)：gemini-1.5-flash
+    - 梯隊 5 (輕量防穿透防線)：gemini-2.0-flash-lite (低延遲高通量，尖峰時負載極低)
+    - 梯隊 6 (通用預設)：gemini-flash-latest
+    徹底根除全選同一前瞻系列導致集體 503 UNAVAILABLE 斷線的風險！
+    """
+    fallback_chain = [
+        "models/gemini-2.5-flash",
+        "models/gemini-2.0-flash",
+        "models/gemini-1.5-flash",
+        "models/gemini-2.0-flash-lite",
+        "models/gemini-flash-latest",
+    ]
     if not client:
-        return [default_model]
+        return fallback_chain
     
-    print("\n🔍 正在掃描可用模型...")
-    flash_models = []
+    print("\n🔍 正在掃描可用 Gemini 模型陣列...")
     try:
+        discovered = []
         for m in client.models.list():
             m_name = m.name.lower()
-            if 'flash' in m_name and 'image' not in m_name and 'tts' not in m_name and 'lite' not in m_name and 'live' not in m_name:
+            # 檢查支援功能 (若有 supported_actions，需支援 generateContent)
+            actions = getattr(m, 'supported_actions', None)
+            if actions and 'generatecontent' not in [str(a).lower() for a in actions]:
+                continue
+
+            if 'flash' in m_name and 'image' not in m_name and 'tts' not in m_name and 'live' not in m_name:
                 version_match = re.search(r'(\d+\.?\d*)', m_name)
                 version = float(version_match.group(1)) if version_match else 0.0
-                flash_models.append((version, m.name))
+                is_lite = 'lite' in m_name
+                discovered.append((version, is_lite, m.name))
         
-        if flash_models:
-            flash_models.sort(key=lambda x: (x[0], -len(x[1])), reverse=True)
-            seen = set()
+        if discovered:
+            standard_models = [x for x in discovered if not x[1]]
+            lite_models = [x for x in discovered if x[1]]
+
+            # 依版本高到低排序
+            standard_models.sort(key=lambda x: (x[0], -len(x[2])), reverse=True)
+            lite_models.sort(key=lambda x: (x[0], -len(x[2])), reverse=True)
+
             candidates = []
-            for _, name in flash_models:
-                if name not in seen:
-                    seen.add(name)
-                    candidates.append(name)
-                if len(candidates) >= 3:
+            seen = set()
+
+            def add_candidate(raw_name):
+                key = raw_name.lower().replace("models/", "")
+                if key not in seen:
+                    seen.add(key)
+                    full_name = raw_name if raw_name.startswith("models/") else f"models/{raw_name}"
+                    candidates.append(full_name)
+
+            # 1. 前瞻嘗鮮：取最高世代 (如 3.x) 最新 1 款
+            if standard_models:
+                top_v = standard_models[0][0]
+                for v, _, name in standard_models:
+                    if v == top_v:
+                        add_candidate(name)
+                        break
+
+            # 2. 注入成熟生產主力 (2.5, 2.0, 1.5)
+            for stable in fallback_chain:
+                add_candidate(stable)
+
+            # 3. 補充其它掃描到的標準模型 (至多擴充到 5 款)
+            for _, _, name in standard_models:
+                add_candidate(name)
+                if len(candidates) >= 5:
                     break
-            print(f"✅ 自動鎖定模型優先順序: {' -> '.join(candidates)}")
+
+            # 4. 補充 Lite 防穿透模型 (尖峰抗壓專用)
+            for _, _, name in lite_models:
+                add_candidate(name)
+                if len(candidates) >= 6:
+                    break
+
+            print(f"✅ 自動構建跨世代階梯式備援陣列 ({len(candidates)} 款):")
+            for idx, c in enumerate(candidates, 1):
+                print(f"   [{idx}] {c}")
             return candidates
         else:
-            print(f"⚠️ 使用備援模型: {default_model}")
-            return [default_model]
+            print(f"⚠️ 未掃描到相符模型，採用預設階梯陣列: {' -> '.join(fallback_chain)}")
+            return fallback_chain
     except Exception as e:
-        print(f"❌ 偵測失敗: {e}")
-        return [default_model]
+        print(f"❌ 掃描失敗: {e}，使用預設高可用階梯陣列")
+        return fallback_chain
 
 def generate_coach_advice(client, candidate_models, report_text):
     """依序調用候選模型進行教練分析 (支援 503 過載自動降級備援)"""
@@ -129,19 +184,42 @@ def generate_coach_advice(client, candidate_models, report_text):
             try:
                 print(f"🤖 嘗試調用模型: {model_name} (第 {attempt + 1} 次)...")
                 response = client.models.generate_content(model=model_name, contents=prompt)
-                print(f"✨ 成功使用模型 {model_name} 完成分析！")
-                return response.text, model_name
+                if response and response.text:
+                    print(f"✨ 成功使用模型 {model_name} 完成分析！")
+                    return response.text, model_name
+                else:
+                    raise ValueError("模型回應內容為空")
             except Exception as e:
                 last_error = e
-                print(f"⚠️ 模型 {model_name} 第 {attempt + 1} 次失敗: {e}")
-                if "503" in str(e) or "UNAVAILABLE" in str(e):
-                    print("   伺服器繁忙 (503)，等待 3 秒後重試或切換下一個模型...")
-                    time.sleep(3)
+                err_str = str(e)
+                print(f"⚠️ 模型 {model_name} 第 {attempt + 1} 次失敗: {err_str}")
+                if "503" in err_str or "UNAVAILABLE" in err_str or "high demand" in err_str.lower():
+                    if attempt == 0:
+                        print("   伺服器繁忙 (503)，等待 2 秒後重試一次...")
+                        time.sleep(2)
+                    else:
+                        print(f"   模型 {model_name} 持續繁忙，立即自動容錯降級至下一個備援模型...")
+                        break
                 else:
                     time.sleep(1)
 
-    error_msg = f"AI error after retry across candidate models ({', '.join(candidate_models)}): {last_error}"
-    return error_msg, candidate_models[0]
+    print(f"❌ 所有候選模型皆嘗試完畢，啟動防禦性降級指引: {last_error}")
+    err_str = str(last_error) if last_error else "Unknown error"
+    if "503" in err_str or "UNAVAILABLE" in err_str or "high demand" in err_str.lower():
+        fallback_advice = (
+            "⚠️ 【AI 雲端服務目前處於全球尖峰負載 (503 UNAVAILABLE)】\n"
+            "Google Gemini 伺服器流量激增，系統已自動依序嘗試跨世代備援模型仍暫時無法取得生成。\n\n"
+            "💡 【跑者今日自主調節指引】：\n"
+            "• 請依據報表上方【丹尼爾 VDOT 靶心配速指針】自主鎖定今日課表配速。\n"
+            "• 檢視【ACWR 體能負荷比】：若在 0.8~1.3 甜點區可照常執行基準課表；若 > 1.3 請主動縮減 20% 跑量或降為輕鬆跑 (E 配速)。\n"
+            "• 賽事倒數提醒：專項準備期請著重特定靶心配速穩定度，注意水分補給與跑後充分放鬆！"
+        )
+    else:
+        fallback_advice = (
+            f"⚠️ 【AI 雲端分析暫時無法取得】：{err_str}\n"
+            "💡 建議依據報表上方【丹尼爾 VDOT 靶心配速】與【ACWR 體能負荷比】自主調配今日課表。"
+        )
+    return fallback_advice, "fallback-rule-engine"
 
 def generate_rest_day_advice(client, candidate_models, report_text):
     """依序調用候選模型進行休息日/超補償教練分析 (支援 503 過載自動降級備援)"""
@@ -180,16 +258,39 @@ def generate_rest_day_advice(client, candidate_models, report_text):
             try:
                 print(f"🤖 嘗試調用模型 (休整模式): {model_name} (第 {attempt + 1} 次)...")
                 response = client.models.generate_content(model=model_name, contents=prompt)
-                print(f"✨ 成功使用模型 {model_name} 完成休整分析！")
-                return response.text, model_name
+                if response and response.text:
+                    print(f"✨ 成功使用模型 {model_name} 完成休整分析！")
+                    return response.text, model_name
+                else:
+                    raise ValueError("模型回應內容為空")
             except Exception as e:
                 last_error = e
-                print(f"⚠️ 模型 {model_name} 第 {attempt + 1} 次失敗: {e}")
-                if "503" in str(e) or "UNAVAILABLE" in str(e):
-                    print("   伺服器繁忙 (503)，等待 3 秒後重試或切換下一個模型...")
-                    time.sleep(3)
+                err_str = str(e)
+                print(f"⚠️ 模型 {model_name} (休整模式) 第 {attempt + 1} 次失敗: {err_str}")
+                if "503" in err_str or "UNAVAILABLE" in err_str or "high demand" in err_str.lower():
+                    if attempt == 0:
+                        print("   伺服器繁忙 (503)，等待 2 秒後重試一次...")
+                        time.sleep(2)
+                    else:
+                        print(f"   模型 {model_name} 持續繁忙，立即自動容錯降級至下一個備援模型...")
+                        break
                 else:
                     time.sleep(1)
 
-    error_msg = f"AI error after retry across candidate models ({', '.join(candidate_models)}): {last_error}"
-    return error_msg, candidate_models[0]
+    print(f"❌ 所有候選模型皆嘗試完畢，啟動防禦性休整指引: {last_error}")
+    err_str = str(last_error) if last_error else "Unknown error"
+    if "503" in err_str or "UNAVAILABLE" in err_str or "high demand" in err_str.lower():
+        fallback_advice = (
+            "⚠️ 【AI 雲端服務目前處於全球尖峰負載 (503 UNAVAILABLE)】\n"
+            "Google Gemini 伺服器流量激增，系統已自動依序嘗試跨世代備援模型仍暫時無法取得生成。\n\n"
+            "🌿 【今日休整自主指引】：\n"
+            "• 今日為排定之體能休整日，重點在於讓自律神經與下肢肌群獲得超補償 (Supercompensation)。\n"
+            "• 建議進行 15~20 分鐘下肢筋膜滾筒放鬆或溫和伸展，補足水分與優質蛋白質。\n"
+            "• 靜待心肺與神經疲勞完全消退，儲備下次課表的飽滿體能！"
+        )
+    else:
+        fallback_advice = (
+            f"⚠️ 【AI 雲端分析暫時無法取得】：{err_str}\n"
+            "🌿 今日為排定之休整日，建議進行主動伸展與充足休息。"
+        )
+    return fallback_advice, "fallback-rule-engine"
