@@ -29,14 +29,39 @@ def split_telegram_text(text, max_chars=4000):
     else:
         primary_sections = [text.strip()]
 
-    # 第二階段：對每一則進行字數確認自動切分
+    # 第二階段：對每一則進行字數確認自動切分 (優先於換行處切分，避免文字從中腰斬)
     final_chunks = []
     for section in primary_sections:
-        if len(section) > max_chars:
-            chunks = [section[i:i+max_chars] for i in range(0, len(section), max_chars)]
-            final_chunks.extend(chunks)
-        else:
+        if len(section) <= max_chars:
             final_chunks.append(section)
+            continue
+
+        current_lines = []
+        current_len = 0
+        for line in section.splitlines(keepends=True):
+            if len(line) > max_chars:
+                if current_lines:
+                    final_chunks.append("".join(current_lines).rstrip("\n"))
+                    current_lines = []
+                    current_len = 0
+                for i in range(0, len(line), max_chars):
+                    part = line[i:i + max_chars].rstrip("\n")
+                    if part:
+                        final_chunks.append(part)
+                continue
+
+            if current_len + len(line) > max_chars and current_lines:
+                final_chunks.append("".join(current_lines).rstrip("\n"))
+                current_lines = [line]
+                current_len = len(line)
+            else:
+                current_lines.append(line)
+                current_len += len(line)
+
+        if current_lines:
+            tail = "".join(current_lines).rstrip("\n")
+            if tail:
+                final_chunks.append(tail)
 
     return final_chunks
 

@@ -12,13 +12,14 @@ from config import (
     LOCAL_SAVE_DIR
 )
 from utils import (
+    get_local_now,
     format_pace,
     format_duration,
     format_hr_zones,
     clean_ai_text,
     format_activity_summary,
     format_laps_table,
-    check_activity_recency,
+    select_yesterday_activity,
     calculate_weekly_stats,
     calculate_acwr,
     format_recovery_metrics,
@@ -28,7 +29,11 @@ from utils import (
     format_aerobic_decoupling,
     format_upcoming_races
 )
-from weather_service import get_open_meteo_weather
+from weather_service import (
+    get_open_meteo_weather,
+    get_today_weather_forecast,
+    format_today_forecast
+)
 from notifier import send_telegram, send_telegram_photo
 from garmin_service import (
     get_garmin_client,
@@ -46,6 +51,17 @@ from ai_service import (
     generate_rest_day_advice
 )
 from chart_service import generate_all_telemetry_charts
+
+def _format_ai_section(section_title, ai_advice, used_model, best_model):
+    """組裝 AI 教練建議區塊，並在標題下方備註實際使用的 AI 模型"""
+    display_used = used_model.replace("models/", "") if used_model else "unknown"
+    display_best = best_model.replace("models/", "") if best_model else "unknown"
+    if used_model and used_model != best_model and used_model != "fallback-rule-engine":
+        model_note = f"(🤖 使用模型：{display_used}，由 {display_best} 容錯切換)"
+    else:
+        model_note = f"(🤖 使用模型：{display_used})"
+    return f"\n\n{section_title}\n{model_note}\n{ai_advice}"
+
 
 def run_main_task():
     # 1. 初始化 AI 客戶端與模型
@@ -87,23 +103,42 @@ def run_main_task():
         else:
             print("ℹ️ 近期三個月內未排定目標賽事。")
 
-        latest_act = activities[0]
-        start_time_str = latest_act.get('startTimeLocal', '')
-        is_recent, diff_hours = check_activity_recency(start_time_str, max_hours=26)
+        # 5. 計算本地時間基準 (今日報告日 vs 昨日分析標的日) 並取得今日時段氣象預報
+        local_now = get_local_now()
+        today_date = local_now.date()
+        yesterday_date = today_date - datetime.timedelta(days=1)
+        weekday_names = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
+        today_label = f"{today_date.isoformat()} ({weekday_names[today_date.weekday()]})"
+        yesterday_label = f"{yesterday_date.isoformat()} ({weekday_names[yesterday_date.weekday()]})"
 
-        # 若最新活動距今超過 26 小時，自動切換為【休整與超補償日報】模式
-        if not is_recent:
-            print(f"🌿 最新活動距今約 {diff_hours:.1f} 小時 (> 26h)，切換為【今日休整與體能恢復日報】模式...")
+        today_forecast = get_today_weather_forecast(DEFAULT_LAT, DEFAULT_LON)
+        today_forecast_str = format_today_forecast(today_forecast)
+        if today_forecast_str:
+            today_forecast_str = today_forecast_str.replace(
+                "🌤️ 【今日訓練時段氣象預報】",
+                f"🌤️ 【今日訓練時段氣象預報 ({today_label})】",
+            )
+
+        primary_act, other_yesterday_acts, history_acts, diff_hours = select_yesterday_activity(
+            activities, reference_now=local_now
+        )
+        display_history = history_acts if history_acts else activities
+
+        # 若昨日 (D-1) 無任何運動紀錄，自動切換為【昨日休整與今日恢復日報】模式
+        if primary_act is None:
+            print(f"🌿 昨日 ({yesterday_label}) 無運動紀錄 (前次訓練距今約 {diff_hours:.1f} 小時)，切換為【昨日休整與今日恢復日報】模式...")
             days_ago = int(diff_hours // 24)
             hours_ago = int(diff_hours % 24)
             time_ago_str = f"{days_ago} 天 {hours_ago} 小時前" if days_ago > 0 else f"{hours_ago} 小時前"
             
-            stats = calculate_weekly_stats(activities)
+            stats = calculate_weekly_stats(display_history)
             
             report = []
-            report.append(f"🌿 【{RUNNER_NAME} 今日休整與體能恢復日報 - {best_model}】")
+            rest_title_tpl = f"🌿 【{RUNNER_NAME} 昨日休整與今日恢復日報 - {{model}}】"
+            report.append(rest_title_tpl.format(model=best_model))
+            report.append(f"📅 報告日期：{today_label} | 分析標的：昨日 {yesterday_label}")
             report.append(f"背景：{RUNNER_BIRTH_YEAR}年生 | PB {RUNNER_PB} | Zone 2: {ZONE2_MAX_HR}bpm")
-            report.append(f"狀態：今日無新運動紀錄 (前次訓練於 {time_ago_str})")
+            report.append(f"狀態：昨日 {yesterday_label} 無運動紀錄（前次訓練於 {time_ago_str}）")
             report.append("=" * 30)
 
             if vdot_str:
@@ -118,20 +153,24 @@ def run_main_task():
                 report.append(recovery_str)
                 report.append("-" * 30)
 
-            report.append("📈 【ACWR 急性與慢性負荷監控 (近28日)】")
+            if today_forecast_str:
+                report.append(today_forecast_str)
+                report.append("-" * 30)
+
+            report.append("📈 【ACWR 急性與慢性負荷監控 (截至昨日，近28日)】")
             report.append(f"  - ACWR 比值: {acwr_data['acwr']} ({acwr_data['status_desc']})")
             report.append(f"  - 急性負荷 (近7日): {acwr_data['acute_load']} | 慢性負荷 (28日週均): {acwr_data['chronic_load']}")
             report.append("-" * 30)
             
-            report.append(f"📊 【近一週累積運動統計 (近 {stats['total_activities']} 筆)】")
+            report.append(f"📊 【近期累積運動統計 (截至昨日，近 {stats['total_activities']} 筆)】")
             report.append(f"  - 累積總跑量: {stats['total_run_km']:.2f} km")
             report.append(f"  - 跑步總耗時: {stats['total_run_duration']}")
             report.append(f"  - 累積總負荷: {stats['total_load']}")
             report.append(f"  - 訓練次數: {stats['run_count']} 次跑步 / {stats['cross_count']} 次交叉訓練")
             report.append("-" * 30)
             
-            report.append(f"📋 【近期訓練歷程明細】")
-            for act in activities:
+            report.append(f"📋 【近期訓練歷程明細 (截至昨日 {yesterday_label})】")
+            for act in display_history:
                 summary_line = format_activity_summary(act)
                 report.append(f"  - {summary_line}")
             report.append("=" * 30)
@@ -141,26 +180,31 @@ def run_main_task():
             ai_advice, used_model = generate_rest_day_advice(ai_client, candidate_models, full_text)
             
             if used_model != best_model:
-                full_text = full_text.replace(f"🌿 【{RUNNER_NAME} 今日休整與體能恢復日報 - {best_model}】", f"🌿 【{RUNNER_NAME} 今日休整與體能恢復日報 - {used_model}】")
+                full_text = full_text.replace(rest_title_tpl.format(model=best_model), rest_title_tpl.format(model=used_model))
             
-            final_message = full_text + "\n\n🤖 【Gemini 休整與超補償指引】\n" + clean_ai_text(ai_advice)
-            final_message = clean_ai_text(final_message)
+            final_message = clean_ai_text(
+                full_text + _format_ai_section("🤖 【Gemini 休整與超補償指引】", ai_advice, used_model, best_model)
+            )
             
             send_telegram(final_message)
 
             # 生成並推播休整圖表 (各圖表獨立分開，大字體高清晰)
             print("📊 正在產出休整與 ACWR 負荷圖表...")
-            charts = generate_all_telemetry_charts(None, None, acwr_data, None, output_dir=LOCAL_SAVE_DIR)
+            charts = generate_all_telemetry_charts(
+                None, None, acwr_data, None, output_dir=LOCAL_SAVE_DIR, date_label=f"截至昨日 {yesterday_date.isoformat()}"
+            )
             for c_path, c_caption in charts:
                 send_telegram_photo(c_path, caption=c_caption)
                 time.sleep(0.5)
 
-            print(f"✅ 今日休整任務完成：{datetime.datetime.now()}")
+            print(f"✅ 今日休整任務完成：{get_local_now()}")
             return
 
-        # 4. 組裝報表抬頭 (最新活動模式)
+        # 4. 組裝報表抬頭 (昨日活動分析 + 今日訓練計畫模式)
         report = []
-        report.append(f"📊 【{RUNNER_NAME} 數據分析報表 - {best_model}】")
+        active_title_tpl = f"📊 【{RUNNER_NAME} 每日訓練分析報表 - {{model}}】"
+        report.append(active_title_tpl.format(model=best_model))
+        report.append(f"📅 報告日期：{today_label} | 分析標的：昨日 {yesterday_label}")
         report.append(f"背景：{RUNNER_BIRTH_YEAR}年生 | PB {RUNNER_PB} | Zone 2: {ZONE2_MAX_HR}bpm")
         report.append("=" * 30)
 
@@ -176,25 +220,29 @@ def run_main_task():
             report.append(recovery_str)
             report.append("-" * 30)
 
-        report.append("📈 【ACWR 急性與慢性負荷監控 (近28日)】")
+        if today_forecast_str:
+            report.append(today_forecast_str)
+            report.append("-" * 30)
+
+        report.append("📈 【ACWR 急性與慢性負荷監控 (截至昨日，近28日)】")
         report.append(f"  - ACWR 比值: {acwr_data['acwr']} ({acwr_data['status_desc']})")
         report.append(f"  - 急性負荷 (近7日): {acwr_data['acute_load']} | 慢性負荷 (28日週均): {acwr_data['chronic_load']}")
         report.append("-" * 30)
 
-        # 5. 近期訓練脈絡 (近 7 筆歷程簡要列表)
-        report.append(f"📋 【近期訓練歷程 (近 {len(activities)} 筆摘要)】")
-        for idx, act in enumerate(activities):
-            tag = " [最新]" if idx == 0 else ""
+        # 5. 近期訓練脈絡 (截至昨日之歷程簡要列表)
+        report.append(f"📋 【近期訓練歷程 (截至昨日，近 {len(display_history)} 筆摘要)】")
+        for act in display_history:
+            tag = " [昨日主分析]" if act is primary_act else ""
             summary_line = format_activity_summary(act)
             report.append(f"  - {summary_line}{tag}")
         report.append("-" * 30)
 
-        # 5. 最新活動深度解剖 (僅針對 activities[0])
-        latest_act = activities[0]
+        # 5. 昨日主要活動深度解剖
+        latest_act = primary_act
         a_id = latest_act["activityId"]
         s_dto = latest_act.get('summaryDTO', {})
         
-        entry = f"🏃 【最新活動深度數據】"
+        entry = f"🏃 【昨日活動深度數據 ({yesterday_label})】"
         entry += f"\n📍 地點: {latest_act.get('locationName', 'Unknown')}"
         entry += f"\n📅 日期: {latest_act.get('startTimeLocal')}"
         entry += f"\n類型: {latest_act.get('activityType', {}).get('typeKey')} | 距離: {latest_act.get('distance', 0)/1000:.2f}km | 卡路里: {int(latest_act.get('calories', 0))} kcal"
@@ -285,6 +333,8 @@ def run_main_task():
                 om_parts.append(f"濕度 {om['humidity']}%")
             if om.get("apparent_temperature") is not None:
                 om_parts.append(f"體感 {om['apparent_temperature']}°C")
+            if om.get("wind_speed") is not None:
+                om_parts.append(f"風速 {om['wind_speed']}km/h")
             if om.get("weather_desc"):
                 om_parts.append(f"({om['weather_desc']})")
             if om_parts:
@@ -293,6 +343,10 @@ def run_main_task():
                     om_weather_str += " (室外測站備援)"
 
         entry += f"\n🌤️ 環境氣象: {om_weather_str}"
+
+        if other_yesterday_acts:
+            other_summaries = "; ".join(format_activity_summary(a) for a in other_yesterday_acts)
+            entry += f"\n➕ 昨日其他紀錄: {other_summaries}"
     
         # 分圈細節 (純文字排版) 與 前後半程有氧解耦率
         laps = fetch_activity_splits(client_garmin, a_id)
@@ -319,22 +373,31 @@ def run_main_task():
         
         # 若實際使用模型發生降級，同步更新報表抬頭
         if used_model != best_model:
-            full_text = full_text.replace(f"📊 【{RUNNER_NAME} 數據分析報表 - {best_model}】", f"📊 【{RUNNER_NAME} 數據分析報表 - {used_model}】")
+            full_text = full_text.replace(active_title_tpl.format(model=best_model), active_title_tpl.format(model=used_model))
         
         # 7. 組裝並過濾 LaTeX 語法後推播
-        final_message = full_text + "\n\n🤖 【Gemini AI 教練建議】\n" + clean_ai_text(ai_advice)
-        final_message = clean_ai_text(final_message)
+        final_message = clean_ai_text(
+            full_text + _format_ai_section("🤖 【Gemini AI 教練建議】", ai_advice, used_model, best_model)
+        )
         
         send_telegram(final_message)
 
         # 8. 生成並推播視覺化遙測圖表 (各圖表獨立分開，大字體高清晰)
         print("📊 正在產出專業運動遙測獨立圖表...")
-        charts = generate_all_telemetry_charts(latest_act, laps, acwr_data, hr_zones, decoupling_data=decoupling_data, output_dir=LOCAL_SAVE_DIR)
+        charts = generate_all_telemetry_charts(
+            latest_act,
+            laps,
+            acwr_data,
+            hr_zones,
+            decoupling_data=decoupling_data,
+            output_dir=LOCAL_SAVE_DIR,
+            date_label=f"昨日 {yesterday_date.isoformat()}",
+        )
         for c_path, c_caption in charts:
             send_telegram_photo(c_path, caption=c_caption)
             time.sleep(0.5)
 
-        print(f"✅ 任務完成：{datetime.datetime.now()}")
+        print(f"✅ 任務完成：{get_local_now()}")
 
     except Exception as e:
         print(f"❌ 腳本執行錯誤: {str(e)}")

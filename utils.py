@@ -1,6 +1,13 @@
 import re
 import datetime
 import math
+from config import TZ_OFFSET_HOURS
+
+
+def get_local_now():
+    """取得設定時區 (預設 UTC+8 台灣時間) 的目前本地時間 (naive datetime，與 Garmin startTimeLocal 對齊)"""
+    local_tz = datetime.timezone(datetime.timedelta(hours=TZ_OFFSET_HOURS))
+    return datetime.datetime.now(local_tz).replace(tzinfo=None)
 
 def format_pace(speed_mps):
     """將公尺/秒轉換為每公里配速 (分:秒)"""
@@ -118,11 +125,70 @@ def check_activity_recency(start_time_str, max_hours=26):
     try:
         clean_time = start_time_str.replace("T", " ")[:19]
         act_dt = datetime.datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
-        now = datetime.datetime.now()
+        now = get_local_now()
         diff_hours = (now - act_dt).total_seconds() / 3600.0
         return diff_hours <= max_hours, diff_hours
     except Exception:
         return True, 0.0
+
+
+def select_yesterday_activity(activities, reference_now=None):
+    """鎖定「昨日 (UTC+8 日曆日)」的運動活動，確保每日排程報表穩定分析前一天數據。
+    - 會自動忽略「今日 (00:00 之後)」尚未輪到明日分析的活動，避免 GitHub Actions 排程延遲時誤抓今日晨跑或重複分析。
+    回傳 (primary_act, other_yesterday_acts, history_up_to_yesterday, diff_hours_since_latest)：
+    - primary_act: 昨日主要活動 (優先選取距離最長的跑步課表，若無跑步則選耗時最長者)；若昨日無活動則為 None。
+    - other_yesterday_acts: 昨日其他同日活動 (例如收操步行、肌力訓練)。
+    - history_up_to_yesterday: 截至昨日的歷史活動清單 (不含今日活動)。
+    - diff_hours_since_latest: 最近一筆歷史活動距今小時數。
+    """
+    if not activities:
+        return None, [], [], 999.0
+
+    local_now = reference_now or get_local_now()
+    today_date = local_now.date()
+    yesterday_date = today_date - datetime.timedelta(days=1)
+
+    history_up_to_yesterday = []
+    yesterday_items = []
+
+    for act in activities:
+        start_time_str = act.get("startTimeLocal", "")
+        if not start_time_str or len(start_time_str) < 10:
+            continue
+        try:
+            clean_time = start_time_str.replace("T", " ")[:19]
+            act_dt = datetime.datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            continue
+
+        act_date = act_dt.date()
+        if act_date > yesterday_date:
+            # 略過今日 (尚未輪到明日報表分析)
+            continue
+
+        diff_hours = (local_now - act_dt).total_seconds() / 3600.0
+        history_up_to_yesterday.append((act, diff_hours))
+        if act_date == yesterday_date:
+            yesterday_items.append((act, diff_hours))
+
+    history_acts = [a for a, _ in history_up_to_yesterday]
+    latest_diff = history_up_to_yesterday[0][1] if history_up_to_yesterday else 999.0
+
+    if not yesterday_items:
+        return None, [], history_acts, latest_diff
+
+    def is_running(act):
+        t = act.get("activityType", {}).get("typeKey", "").lower()
+        return "running" in t or "treadmill" in t
+
+    running_items = [(a, d) for a, d in yesterday_items if is_running(a)]
+    if running_items:
+        primary_act, primary_diff = max(running_items, key=lambda item: float(item[0].get("distance", 0) or 0))
+    else:
+        primary_act, primary_diff = max(yesterday_items, key=lambda item: float(item[0].get("duration", 0) or 0))
+
+    other_yesterday = [a for a, _ in yesterday_items if a is not primary_act]
+    return primary_act, other_yesterday, history_acts, primary_diff
 
 def calculate_weekly_stats(activities):
     """統計近期活動的累積總跑量、總負荷與運動次數分佈"""
@@ -156,10 +222,11 @@ def calculate_weekly_stats(activities):
         "total_activities": len(activities)
     }
 
-def calculate_acwr(activities):
+def calculate_acwr(activities, reference_now=None):
     """計算 ACWR (急性與慢性負荷比, Acute:Chronic Workload Ratio)
-    - Acute Load (急性負荷): 過去 7 天的累積訓練負荷
-    - Chronic Load (慢性負荷): 過去 28 天 (4 週) 的週平均負荷
+    - 嚴格以設定時區「截至昨日為止」的完整日曆天計算：
+      - Acute Load (急性負荷): 過去 7 個完整日曆天 (D-7 ~ D-1) 的累積訓練負荷
+      - Chronic Load (慢性負荷): 過去 28 個完整日曆天 (D-28 ~ D-1, 4 週) 的週平均負荷
     - 比值評估：
       < 0.8: 低負荷 / 減量恢復期 (Under-training)
       0.8 ~ 1.3: 最佳適應甜點區 (Sweet Spot, 受傷風險最低)
@@ -175,9 +242,10 @@ def calculate_acwr(activities):
             "status_zone": "none"
         }
     
-    now = datetime.datetime.now()
-    acute_cutoff = (now - datetime.timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
-    chronic_cutoff = (now - datetime.timedelta(days=28)).replace(hour=0, minute=0, second=0, microsecond=0)
+    now = reference_now or get_local_now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    acute_cutoff = today_start - datetime.timedelta(days=7)
+    chronic_cutoff = today_start - datetime.timedelta(days=28)
     
     acute_load = 0.0
     chronic_load_total = 0.0
@@ -192,6 +260,9 @@ def calculate_acwr(activities):
         except Exception:
             continue
             
+        if act_dt >= today_start:
+            continue
+
         s_dto = a.get("summaryDTO", {})
         load = float(s_dto.get("activityTrainingLoad") or a.get("activityTrainingLoad") or 0)
         
@@ -413,6 +484,21 @@ def calculate_aerobic_decoupling(laps):
 
     decoupling_pct = ((ef1 - ef2) / ef1) * 100.0
 
+    # 檢驗是否為穩態課表 (排除間歇/法特萊克等配速變異度極大的課表誤判)
+    qualifying_speeds = [
+        l.get("distance", 0) / l.get("duration", 1)
+        for l in laps
+        if (l.get("distance", 0) or 0) >= 200 and (l.get("duration", 0) or 0) >= 30
+    ]
+    is_steady_state = True
+    if len(qualifying_speeds) >= 3:
+        mean_spd = sum(qualifying_speeds) / len(qualifying_speeds)
+        if mean_spd > 0:
+            variance = sum((s - mean_spd) ** 2 for s in qualifying_speeds) / len(qualifying_speeds)
+            cv = math.sqrt(variance) / mean_spd
+            if cv > 0.15:
+                is_steady_state = False
+
     if decoupling_pct < 3.0:
         status_desc = "極度穩定 (Elite Aerobic Base, 幾無心率漂移)"
         status_zone = "excellent"
@@ -426,6 +512,9 @@ def calculate_aerobic_decoupling(laps):
         status_desc = "顯著解耦 (High Drift, 體能超載或嚴重脫水)"
         status_zone = "danger"
 
+    if not is_steady_state:
+        status_desc += " [非穩態/間歇課表僅供參考]"
+
     return {
         "decoupling_pct": round(decoupling_pct, 1),
         "ef1": round(ef1, 2),
@@ -435,6 +524,8 @@ def calculate_aerobic_decoupling(laps):
         "val1": round(val1, 1),
         "val2": round(val2, 1),
         "is_power": is_pwr,
+        "is_steady_state": is_steady_state,
+        "split_lap_x": len(first_half_laps) + 0.5,
         "status_desc": status_desc,
         "status_zone": status_zone
     }
@@ -450,6 +541,8 @@ def format_aerobic_decoupling(decoupling_data):
         f"  - 前半程 vs 後半程心率: {decoupling_data['hr1']} bpm → {decoupling_data['hr2']} bpm",
         f"  - 解耦漂移率: {sign}{d_pct}% ({decoupling_data['status_desc']})"
     ]
+    if not decoupling_data.get("is_steady_state", True):
+        lines.append("  - 備註: 偵測到各圈配速落差較大 (間歇/變速課表)，前後半程心率漂移數值僅供參考。")
     return "\n".join(lines)
 
 def format_upcoming_races(races):

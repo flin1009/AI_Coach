@@ -1,6 +1,7 @@
 import datetime
 from garminconnect import Garmin
 from config import GARMIN_EMAIL, GARMIN_PWD
+from utils import get_local_now
 
 def get_garmin_client():
     """登入並回傳 Garmin 客戶端實例 (原方式：帳號密碼直接登入)"""
@@ -22,8 +23,19 @@ def fetch_recent_activities(client, count=7):
         print(f"❌ 取得 Garmin 活動失敗: {e}")
         return []
 
-def fetch_extended_activities(client, count=35):
-    """取得過去約 4 週 (28~35天) 的長週期活動數據，供 ACWR 模型計算"""
+def fetch_extended_activities(client, count=35, days=28):
+    """取得過去指定天數 (預設 28 天) 的長週期活動數據，供 ACWR 模型完整計算。
+    優先使用日期區間查詢避免高頻交叉訓練截斷 28 天視窗，失敗時優雅降級為筆數查詢。
+    """
+    try:
+        end_date = get_local_now().date()
+        start_date = end_date - datetime.timedelta(days=days)
+        by_date = client.get_activities_by_date(start_date.isoformat(), end_date.isoformat())
+        if isinstance(by_date, list):
+            return by_date
+    except Exception as e:
+        print(f"⚠️ 日期區間查詢長週期活動失敗 (改用筆數查詢): {e}")
+
     try:
         return client.get_activities(0, count)
     except Exception as e:
@@ -50,7 +62,7 @@ def fetch_daily_recovery_metrics(client, target_date=None):
     優雅降級：若無數據或 API 拋出異常，一律安全回傳 None，絕不影響主任務。
     """
     if not target_date:
-        tw_today = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)).date()
+        tw_today = get_local_now().date()
         target_date = tw_today.isoformat()
     
     try:
@@ -69,7 +81,7 @@ def fetch_daily_recovery_metrics(client, target_date=None):
         # 若今日數據尚早未完全同步，嘗試檢索昨日摘要作為備援
         if not summary.get("restingHeartRate"):
             try:
-                tw_today = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)).date()
+                tw_today = get_local_now().date()
                 yest = (tw_today - datetime.timedelta(days=1)).isoformat()
                 yest_summary = client.get_user_summary(yest) or {}
                 if yest_summary.get("restingHeartRate"):
@@ -107,7 +119,7 @@ def fetch_upcoming_races(client, months_ahead=3):
     - 優雅降級：若 API 連線失敗或無資料，安全回傳空清單 []
     """
     try:
-        today = datetime.date.today()
+        today = get_local_now().date()
         max_date = today + datetime.timedelta(days=months_ahead * 30)
 
         # 計算欲查詢的年月份 (包含本月與未來 months_ahead 個月)

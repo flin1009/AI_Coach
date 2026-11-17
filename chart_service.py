@@ -96,22 +96,14 @@ def generate_acwr_chart(acwr_data, save_path="acwr_chart.png"):
 
         # 區間刻度條與指標說明
         zones = [
-            ("Under (< 0.8)", 0.58, CYAN_ACCENT, "Fitness Decay / Low Load"),
-            ("Sweet Spot (0.8 - 1.3)", 0.44, GREEN_ACCENT, "Optimal / Low Injury Risk"),
-            ("Caution (1.3 - 1.5)", 0.30, ORANGE_ACCENT, "High Fatigue Accumulation"),
-            ("Danger (>= 1.5)", 0.16, RED_ACCENT, "High Injury Danger Zone"),
+            ("under", "Under (< 0.8)", 0.58, CYAN_ACCENT, "Fitness Decay / Low Load"),
+            ("optimal", "Sweet Spot (0.8 - 1.3)", 0.44, GREEN_ACCENT, "Optimal / Low Injury Risk"),
+            ("caution", "Caution (1.3 - 1.5)", 0.30, ORANGE_ACCENT, "High Fatigue Accumulation"),
+            ("danger", "Danger (>= 1.5)", 0.16, RED_ACCENT, "High Injury Danger Zone"),
         ]
 
-        for name, y_pos, color, desc in zones:
-            is_current = False
-            if name.startswith("Under") and acwr_val < 0.8:
-                is_current = True
-            elif name.startswith("Sweet") and 0.8 <= acwr_val <= 1.3:
-                is_current = True
-            elif name.startswith("Caution") and 1.3 < acwr_val < 1.5:
-                is_current = True
-            elif name.startswith("Danger") and acwr_val >= 1.5:
-                is_current = True
+        for z_key, name, y_pos, color, desc in zones:
+            is_current = (status_zone == z_key)
 
             prefix = "▶ " if is_current else "  "
             weight = "bold" if is_current else "normal"
@@ -264,6 +256,8 @@ def generate_laps_trend_chart(laps, save_path="laps_trend_chart.png", decoupling
 
         # 配速軸標籤格式化為 M:SS (例如 5.25 轉為 5:15)
         def pace_fmt(val, pos):
+            if val <= 0:
+                return "0:00"
             m = int(val)
             s = int(round((val - m) * 60))
             if s >= 60:
@@ -284,7 +278,7 @@ def generate_laps_trend_chart(laps, save_path="laps_trend_chart.png", decoupling
 
         # 若有解耦數據，繪製半程分割虛線 (圖表使用純英文標籤避免 Linux 字型警告)
         if decoupling_data and len(laps) >= 4:
-            mid_x = (len(laps) + 1) / 2.0
+            mid_x = decoupling_data.get('split_lap_x') or ((len(laps) + 1) / 2.0)
             ax_pace.axvline(x=mid_x, color=PURPLE_ACCENT, linestyle=':', lw=1.8, alpha=0.8, zorder=2)
             d_pct = decoupling_data.get('decoupling_pct', 0)
             sign = "+" if d_pct > 0 else ""
@@ -330,24 +324,25 @@ def generate_laps_trend_chart(laps, save_path="laps_trend_chart.png", decoupling
         return False
 
 
-def generate_all_telemetry_charts(latest_act, laps, acwr_data, hr_zones_raw, decoupling_data=None, output_dir="."):
+def generate_all_telemetry_charts(latest_act, laps, acwr_data, hr_zones_raw, decoupling_data=None, output_dir=".", date_label=None):
     """生成所有個別獨立的遙測圖表，回傳 [(檔案路徑, Telegram 圖說 Caption)] 清單。
     每個圖表單獨繪製，字體更大、排版寬敞、在手機 Telegram 瀏覽時清晰無比！
     """
     charts = []
+    date_tag = f" ({date_label})" if date_label else ""
 
     # 1. ACWR 負荷比與體能監控圖 (運動日與休整日皆產出)
     if acwr_data:
         acwr_file = os.path.join(output_dir, "acwr_chart.png")
         if generate_acwr_chart(acwr_data, acwr_file):
-            caption = f"📈 【ACWR 急性與慢性負荷監控】\n比值: {acwr_data.get('acwr', 'N/A')} ({acwr_data.get('status_desc', '')})"
+            caption = f"📈 【ACWR 急性與慢性負荷監控{date_tag}】\n比值: {acwr_data.get('acwr', 'N/A')} ({acwr_data.get('status_desc', '')})"
             charts.append((acwr_file, caption))
 
     # 2. 心率區間分佈圖 (僅在有心率區間數據時產出)
     if hr_zones_raw:
         hr_file = os.path.join(output_dir, "hr_zones_chart.png")
         if generate_hr_zones_chart(hr_zones_raw, hr_file):
-            caption = "💓 【心率區間分佈 (Z1 ~ Z5)】\n各心率區間訓練時間與強度佔比"
+            caption = f"💓 【心率區間分佈 (Z1 ~ Z5){date_tag}】\n各心率區間訓練時間與強度佔比"
             charts.append((hr_file, caption))
 
     # 3. 分圈配速與心率走勢圖 (僅在有 2 圈以上分圈數據時產出)
@@ -357,9 +352,9 @@ def generate_all_telemetry_charts(latest_act, laps, acwr_data, hr_zones_raw, dec
             if decoupling_data:
                 d_pct = decoupling_data.get('decoupling_pct', 0)
                 sign = "+" if d_pct > 0 else ""
-                caption = f"⚡ 【各公里配速與心率走勢】\n共 {len(laps)} 公里 | 有氧解耦率: {sign}{d_pct}% ({decoupling_data.get('status_desc', '')})"
+                caption = f"⚡ 【各公里配速與心率走勢{date_tag}】\n共 {len(laps)} 公里 | 有氧解耦率: {sign}{d_pct}% ({decoupling_data.get('status_desc', '')})"
             else:
-                caption = f"⚡ 【各公里配速與心率走勢】\n共 {len(laps)} 公里分圈穩定度與心率漂移分析"
+                caption = f"⚡ 【各公里配速與心率走勢{date_tag}】\n共 {len(laps)} 公里分圈穩定度與心率漂移分析"
             charts.append((laps_file, caption))
 
     return charts
