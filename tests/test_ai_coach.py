@@ -181,6 +181,10 @@ class TestUtils(unittest.TestCase):
 
     def test_clean_ai_text(self):
         self.assertEqual(utils.clean_ai_text(r"A $\rightarrow$ B \to C"), "A → B → C")
+        self.assertEqual(
+            utils.clean_ai_text("### 賽後復盤\n  * **訓練型態判定**：**正式賽事**\n負荷 2 * 3 與 snake_case"),
+            "賽後復盤\n  • 訓練型態判定：正式賽事\n負荷 2 * 3 與 snake_case",
+        )
 
     def test_format_upcoming_races_excludes_past_and_formats_yesterday_context(self):
         races = [
@@ -203,6 +207,12 @@ class TestUtils(unittest.TestCase):
         is_plain, plain_note = utils.format_yesterday_race_context({"eventTypeDTO": {"typeKey": "uncategorized"}}, [])
         self.assertFalse(is_plain)
         self.assertEqual(plain_note, "")
+
+        recent_text = utils.format_recent_races([
+            {"title": "2026 Mother Marathon", "date": "2026-11-21", "days_left": -2, "distance_km": 42.2}
+        ])
+        self.assertIn("近期剛完賽目標賽事", recent_text)
+        self.assertIn("2 天前完賽", recent_text)
 
 
 class TestGarminService(unittest.TestCase):
@@ -399,6 +409,22 @@ class TestAIService(unittest.TestCase):
         self.assertIn("🏁 賽事關聯", captured[0])
         self.assertIn("賽後恢復期", captured[0])
 
+    def test_generate_rest_day_advice_prompt_includes_post_race_recovery(self):
+        mock_client = MagicMock()
+        captured = []
+
+        def fake_generate(model, contents):
+            captured.append(contents)
+            resp = MagicMock()
+            resp.text = "Post-Race Rest"
+            return resp
+
+        mock_client.models.generate_content.side_effect = fake_generate
+        ai_service.generate_rest_day_advice(mock_client, ["models/m1"], "🏁 【近期剛完賽目標賽事】")
+        self.assertEqual(len(captured), 1)
+        self.assertIn("賽後漸進恢復期", captured[0])
+        self.assertIn("嚴禁使用", captured[0])
+
 
 class TestNotifier(unittest.TestCase):
     def test_split_telegram_text_preserves_lines(self):
@@ -432,6 +458,27 @@ class TestChartService(unittest.TestCase):
                 self.assertTrue(os.path.exists(path))
                 self.assertGreater(os.path.getsize(path), 1000)
                 self.assertTrue(len(caption) > 0)
+
+    def test_marathon_laps_chart_adaptive_ticks_and_outlier_ylim(self):
+        ticks = chart_service._select_lap_ticks(list(range(1, 44)))
+        self.assertLessEqual(len(ticks), 12)
+        self.assertEqual(ticks[0], 1)
+        self.assertEqual(ticks[-1], 43)
+
+        # 42 圈約 5:00/km，最後第 43 圈是極慢速 16:40/km (1.0 m/s) 零頭圈
+        marathon_laps = [
+            {"averageSpeed": 3.33, "averageHR": 160, "distance": 1000, "duration": 300} for _ in range(42)
+        ] + [{"averageSpeed": 1.0, "averageHR": 145, "distance": 195, "duration": 195}]
+        ylim = chart_service._compute_pace_ylim([(1000 / l["averageSpeed"]) / 60 for l in marathon_laps])
+        self.assertIsNotNone(ylim)
+        self.assertLess(ylim[0], 7.0)  # 反轉軸下方不應被 16.7 min/km 拉扁
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_path = os.path.join(tmpdir, "marathon_laps.png")
+            ok = chart_service.generate_laps_trend_chart(marathon_laps, save_path=out_path)
+            self.assertTrue(ok)
+            self.assertTrue(os.path.exists(out_path))
+            self.assertGreater(os.path.getsize(out_path), 1000)
 
 
 class TestMainFlow(unittest.TestCase):
@@ -611,7 +658,7 @@ class TestMainFlow(unittest.TestCase):
              patch.object(main.time, "sleep"):
             main.run_main_task()
 
-        mock_races.assert_called_once_with(unittest.mock.ANY, months_ahead=3, days_back=1)
+        mock_races.assert_called_once_with(unittest.mock.ANY, months_ahead=3, days_back=7)
         self.assertEqual(len(captured_prompts), 1)
         report_sent_to_ai = captured_prompts[0]
         self.assertIn("[昨日主分析 | 正式賽事]", report_sent_to_ai)
@@ -621,6 +668,55 @@ class TestMainFlow(unittest.TestCase):
         # 昨日已完賽賽事不應出現在「未來目標賽事」清單中
         upcoming_section = report_sent_to_ai.split("🏆 【未來目標賽事")[1].split("-" * 30)[0]
         self.assertNotIn("2026 Mother Marathon", upcoming_section)
+
+    def test_run_main_task_post_race_rest_day_carries_recent_race_context(self):
+        fake_now = datetime.datetime(2026, 11, 23, 4, 0, 0)
+        activities = [
+            {
+                "activityId": 777,
+                "startTimeLocal": "2026-11-21 06:00:00",
+                "activityType": {"typeKey": "running"},
+                "distance": 42195,
+                "duration": 13500,
+            }
+        ]
+        races = [
+            {
+                "id": 555,
+                "title": "2026 Mother Marathon 北港媽祖盃全國馬拉松",
+                "date": "2026-11-21",
+                "days_left": -2,
+                "distance_km": 42.2,
+            }
+        ]
+        captured_prompts = []
+
+        def fake_rest_coach(client, models, report_text):
+            captured_prompts.append(report_text)
+            return ("建議今日持續休整恢復", "models/gemini-4-hydrogen")
+
+        with tempfile.TemporaryDirectory() as tmpdir, \
+             patch.object(main, "LOCAL_SAVE_DIR", tmpdir), \
+             patch.object(main, "get_local_now", return_value=fake_now), \
+             patch.object(utils, "get_local_now", return_value=fake_now), \
+             patch.object(main, "get_genai_client", return_value=MagicMock()), \
+             patch.object(main, "detect_candidate_models", return_value=["models/gemini-4-hydrogen"]), \
+             patch.object(main, "get_garmin_client", return_value=MagicMock()), \
+             patch.object(main, "fetch_recent_activities", return_value=activities), \
+             patch.object(main, "fetch_extended_activities", return_value=activities), \
+             patch.object(main, "fetch_daily_recovery_metrics", return_value=None), \
+             patch.object(main, "fetch_upcoming_races", return_value=races), \
+             patch.object(main, "get_today_weather_forecast", return_value=None), \
+             patch.object(main, "generate_rest_day_advice", side_effect=fake_rest_coach), \
+             patch.object(main, "send_telegram"), \
+             patch.object(main, "send_telegram_photo"), \
+             patch.object(main.time, "sleep"):
+            main.run_main_task()
+
+        self.assertEqual(len(captured_prompts), 1)
+        self.assertIn("🏁 【近期剛完賽目標賽事 (近7日內，賽後恢復期參考)】", captured_prompts[0])
+        self.assertIn("2 天前完賽", captured_prompts[0])
+        self.assertIn("2026 Mother Marathon 北港媽祖盃全國馬拉松", captured_prompts[0])
 
 
 if __name__ == "__main__":

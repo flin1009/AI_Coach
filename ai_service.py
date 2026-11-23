@@ -200,6 +200,12 @@ def _invoke_models_with_fallback(client, candidate_models, prompt, mode_label, f
     )
 
 
+_PLAIN_TEXT_FORMAT_RULE = (
+    "格式要求：請使用純文字繁體中文，嚴禁使用 LaTeX 數學語法（例如請勿輸出 $\\rightarrow$ 或 \\rightarrow，"
+    "若需箭頭請一律直接使用一般文字符號 → 或 ->）與 Markdown 語法符號（如 **粗體**、### 標題或 * 項目符號；條列請直接使用 • 或數字編號）。"
+)
+
+
 def generate_coach_advice(client, candidate_models, report_text):
     """依序調用候選模型進行教練分析 (支援 503 過載自動降級備援)"""
     tw_now, weekday_str, is_weekend = get_taiwan_weekday_info()
@@ -209,7 +215,11 @@ def generate_coach_advice(client, candidate_models, report_text):
     yesterday_str = f"{yesterday_dt.isoformat()} ({weekday_names[yesterday_dt.weekday()]})"
     today_str = f"{today_date_str} ({weekday_str})"
 
-    post_race_rule = "       - 若昨日剛完成「正式賽事」（特別是半馬/全馬或高負荷賽事），今日請優先轉為「賽後恢復期」處方（建議完全休跑、低衝擊散步或極輕度排酸恢復，並強化補水、電解質與蛋白質修復），切勿立即開立常態備賽課表。"
+    post_race_rule = (
+        "       - 若昨日剛完成「正式賽事」，或報表中有「近期剛完賽目標賽事 (近7日內)」（特別是半馬/全馬或高負荷賽事），"
+        "今日請優先依「賽後恢復期」原則調整（賽後 D+1 建議完全休跑或低衝擊散步；D+2~D+7 依生理恢復狀態與 ACWR 漸進恢復，"
+        "僅安排極輕鬆 E 配速短距離恢復跑或持續休跑，切勿過早開立 M/T/I 強度課表）。"
+    )
 
     if is_weekend:
         menu_instruction = f"""6. 【目標賽事備賽週期與今日訓練菜單 (今日 {today_str} 為假日，彈性時段指引)】：
@@ -243,7 +253,7 @@ def generate_coach_advice(client, candidate_models, report_text):
     A. 【丹尼爾 VDOT 靶心配速指針】：包含跑者在當前全馬 PB 換算之 VDOT 水準下的五大科學訓練靶心配速 (E/M/T/I/R)。
     B. 【急性與慢性負荷比 (ACWR)】：評估截至昨日之近 7 日急劇疲勞與近 28 日慢性體能之比值，判定目前處於甜點區 (Sweet Spot)、疲勞累積還是高受傷風險。
     C. 【今日生理恢復狀態 (若有)】：包含夜間 HRV (7日均值/狀態)、靜止心率與身體電量，評估自律神經與中樞神經修復準備度。
-    D. 【未來目標賽事 (近三個月倒數) (若有)】：列出距離今日 ({today_date_str}) 90 天內的目標賽事、比賽日期、距離與倒數天數。
+    D. 【目標賽事脈絡 (若有)】：包含「近期剛完賽目標賽事 (近7日內)」與距離今日 ({today_date_str}) 90 天內的「未來目標賽事」（比賽日期、距離與倒數/完賽天數）。
     E. 【今日訓練時段氣象預報 (若有)】：提供今日 ({today_str}) 清晨、下午與晚間的氣溫、體感、濕度、降雨機率與風速。
     F. 【近期訓練歷程 (截至昨日摘要)】：提供近一週的累積跑量、交叉訓練頻率與急劇疲勞脈絡。
     G. 【昨日活動深度數據】：包含昨日 ({yesterday_str}) 主要活動的分圈、心率區間 (Z1~Z5)、前後半程有氧解耦率 (Decoupling %)、跑步動態、功率與當時環境氣象。
@@ -258,7 +268,7 @@ def generate_coach_advice(client, candidate_models, report_text):
     {menu_instruction}
     
     語氣請保持專業、精確，並帶一點工程師的簡潔感。
-    格式要求：請使用純文字繁體中文，嚴禁使用 LaTeX 數學語法（例如請勿輸出 $\rightarrow$ 或 \rightarrow，若需箭頭請一律直接使用一般文字符號 → 或 ->）。
+    {_PLAIN_TEXT_FORMAT_RULE}
     數據內容：
     {report_text}
     """
@@ -292,14 +302,23 @@ def generate_rest_day_advice(client, candidate_models, report_text):
     yesterday_str = f"{yesterday_dt.isoformat()} ({weekday_names[yesterday_dt.weekday()]})"
     today_str = f"{today_date_str} ({weekday_str})"
 
+    post_race_rest_rule = (
+        "       - 若報表顯示「昨日目標賽事日」或「近期剛完賽目標賽事 (近7日內)」（例如剛完成半馬/全馬），"
+        "即使 ACWR 下降或單日 HRV 回升，仍須優先遵守賽後漸進恢復期（全馬後一週以完全休息、步行或極短程輕鬆慢跑為主，嚴禁急於重啟高強度課表）。"
+    )
+
     if is_weekend:
         rest_instruction = f"""4. 【目標賽事備賽週期與今日 ({today_str} 假日) 訓練／休整規劃】：
        - 跑者作息說明：跑者昨日 ({yesterday_str}) 未安排運動紀錄（已完成一日休整）；今日 ({today_str}) 為假日（作息彈性：多數下午、其次晚間、少數早上）。
-       - 檢視「未來目標賽事」及其倒數天數/週數與今日氣象預報，判斷當前備賽週期階段。若 ACWR 與恢復狀態已就緒，請開立具體明確的「今日重啟訓練課表」（指定 E/M/T/I/R 訓練目的、精確公里數、丹尼爾靶心配速與時段建議）；若仍處於高疲勞警戒區，則明確建議今日持續休整，並預告明日課表。標題請使用：🎯 【今日訓練重啟／休整指引 ({today_str} 假日)】"""
+       - 檢視「近期剛完賽目標賽事」、「未來目標賽事」及其倒數天數/週數與今日氣象預報，判斷當前週期階段。若 ACWR 與恢復狀態已就緒，請開立具體明確的「今日重啟訓練課表」（指定 E/M/T/I/R 訓練目的、精確公里數、丹尼爾靶心配速與時段建議）；若仍處於高疲勞警戒區或賽後恢復週，則明確建議今日持續休整或僅輕度恢復，並預告明日課表。
+{post_race_rest_rule}
+       標題請使用：🎯 【今日訓練重啟／休整指引 ({today_str} 假日)】"""
     else:
         rest_instruction = f"""4. 【目標賽事備賽週期與今日 ({today_str} 平日) 訓練／休整規劃】：
        - 跑者作息說明：本報表於今日 ({today_str}) 清晨送達。跑者昨日 ({yesterday_str}) 無運動紀錄（已完成一日休整）。
-       - 檢視「未來目標賽事」及其倒數天數/週數與今日氣象預報，判斷當前備賽週期階段。若 ACWR 與恢復狀態已就緒，請開立具體明確的「今日重啟訓練課表」（指定 E/M/T/I/R 訓練目的、精確公里數、丹尼爾靶心配速，並提供晨間／晚間二擇一指引）；若仍處於高疲勞警戒區，則建議今日持續休整並預告明日課表。標題請使用：🎯 【今日訓練重啟／休整指引 ({today_str} 平日)】"""
+       - 檢視「近期剛完賽目標賽事」、「未來目標賽事」及其倒數天數/週數與今日氣象預報，判斷當前週期階段。若 ACWR 與恢復狀態已就緒，請開立具體明確的「今日重啟訓練課表」（指定 E/M/T/I/R 訓練目的、精確公里數、丹尼爾靶心配速，並提供晨間／晚間二擇一指引）；若仍處於高疲勞警戒區或賽後恢復週，則建議今日持續休整或僅輕度恢復並預告明日課表。
+{post_race_rest_rule}
+       標題請使用：🎯 【今日訓練重啟／休整指引 ({today_str} 平日)】"""
 
     prompt = f"""
     你是一位專業的馬拉松耐力運動教練。
@@ -307,16 +326,16 @@ def generate_rest_day_advice(client, candidate_models, report_text):
     背景：{RUNNER_NAME}，{RUNNER_BIRTH_YEAR} 年生、全馬 PB {RUNNER_PB}、Zone 2 心率上限 {ZONE2_MAX_HR}bpm。
     
     在耐力訓練中，適當的休息與超補償 (Supercompensation) 是體能躍升與預防過度訓練的關鍵。
-    請根據跑者截至昨日的訓練歷程、ACWR 負荷、今日生理恢復數據與今日氣象預報，評估昨日休整後的超補償成果，並提供專業、科學且具體可行的「今日 ({today_str}) 體能評估與訓練建議」。
+    請根據跑者截至昨日的訓練歷程、近期剛完賽賽事 (若有)、ACWR 負荷、今日生理恢復數據與今日氣象預報，評估昨日休整後的超補償成果，並提供專業、科學且具體可行的「今日 ({today_str}) 體能評估與訓練建議」。
 
     請針對以下 4 點重點提供分析與建議：
-    1. 【週期負荷與超補償診斷】：結合 ACWR (急劇與慢性負荷比) 與今日生理恢復狀態 (若有 HRV/靜止心率/電量)，評估經過昨日休整後，身體目前處於減量恢復期、最佳適應甜點期還是仍處疲勞警戒期。
+    1. 【週期負荷與超補償診斷】：結合 ACWR (急劇與慢性負荷比)、今日生理恢復狀態 (若有 HRV/靜止心率/電量) 與近7日內完賽賽事/長距離高負荷紀錄，評估經過昨日休整後，身體目前處於賽後修復期、減量恢復期、最佳適應甜點期還是仍處疲勞警戒期。
     2. 【主動恢復與筋膜保養處方】：給予今日具體的身體保養指引（例如：泡沫軸滾筒放鬆、髖關節/小腿動態伸展或輕度步行）。
     3. 【營養、補水與修復關鍵】：針對耐力跑者的肌肉修復，提醒飲食重點（優質蛋白質攝取、水分電解質平衡與睡眠修復建議）。
     {rest_instruction}
 
     語氣請保持專業、鼓勵、精準，並帶一點工程師的科學簡潔感。
-    格式要求：請使用純文字繁體中文，嚴禁使用 LaTeX 數學語法（例如請勿輸出 $\rightarrow$ 或 \rightarrow，若需箭頭請一律直接使用一般文字符號 → 或 ->）。
+    {_PLAIN_TEXT_FORMAT_RULE}
     歷史與統計數據：
     {report_text}
     """

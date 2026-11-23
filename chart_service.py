@@ -1,3 +1,4 @@
+import math
 import os
 import matplotlib
 matplotlib.use('Agg')  # 無介面背景渲染，專為伺服器與 CI/CD 設計
@@ -212,6 +213,42 @@ def generate_hr_zones_chart(hr_zones_raw, save_path="hr_zones_chart.png"):
         return False
 
 
+def _select_lap_ticks(lap_nums, max_ticks=12):
+    """依總圈數挑選不重疊的 X 軸刻度，確保全馬 42+ 圈依然清晰可讀"""
+    n = len(lap_nums)
+    if n <= max_ticks:
+        return lap_nums
+    step = next((s for s in (2, 5, 10, 20) if n // s <= max_ticks - 1), max(1, math.ceil(n / max_ticks)))
+    min_gap = max(1, math.ceil(step * 0.4))
+    ticks = [1]
+    for k in range(step, n, step):
+        if k > 1 and (n - k) >= min_gap:
+            ticks.append(k)
+    if ticks[-1] != n:
+        ticks.append(n)
+    return ticks
+
+
+def _compute_pace_ylim(valid_paces):
+    """計算配速 Y 軸合理顯示範圍，避免單圈極端慢速 (如收尾零頭圈/停等) 壓扁主體曲線"""
+    if len(valid_paces) < 5:
+        return None
+    q1, q3 = np.percentile(valid_paces, [25, 75])
+    iqr = max(float(q3 - q1), 0.25)
+    lower_fence = max(1.5, float(q1) - 2.5 * iqr)
+    upper_fence = float(q3) + 2.5 * iqr
+    if max(valid_paces) <= upper_fence and min(valid_paces) >= lower_fence:
+        return None
+    inliers = [p for p in valid_paces if lower_fence <= p <= upper_fence]
+    if len(inliers) < len(valid_paces) / 2:
+        return None
+    span = max(inliers) - min(inliers)
+    pad = max(span * 0.18, 0.2)
+    y_min = max(1.5, min(inliers) - pad)
+    y_max = max(inliers) + pad
+    return (y_max, y_min)  # 配速軸反轉：慢速在下方、快速在上方
+
+
 def generate_laps_trend_chart(laps, save_path="laps_trend_chart.png", decoupling_data=None):
     """繪製獨立分圈配速與心率走勢圖 (Dual-axis Lap Pace & HR Trend，配速 M:SS 軸格式化，支援半程分割與有氧解耦率標註)"""
     try:
@@ -242,17 +279,23 @@ def generate_laps_trend_chart(laps, save_path="laps_trend_chart.png", decoupling
         paces = []
         hrs = []
         for l in laps:
-            spd = l.get('averageSpeed', 0)
-            p_min = (1000 / spd) / 60 if spd > 0 else 6.0
+            spd = l.get('averageSpeed', 0) or 0
+            p_min = (1000 / spd) / 60 if spd > 0 else np.nan
             paces.append(p_min)
             hrs.append(l.get('averageHR', 0))
 
         # --- 繪製配速 (左 Y 軸，反轉使配速越快在上方) ---
-        line_pace = ax_pace.plot(lap_nums, paces, color=CYAN_ACCENT, marker='o', markersize=6,
+        marker_size = 6 if len(laps) <= 20 else 4
+        line_pace = ax_pace.plot(lap_nums, paces, color=CYAN_ACCENT, marker='o', markersize=marker_size,
                                  lw=2.5, label='Pace (min/km)', zorder=3)
         ax_pace.set_ylabel('Pace (min/km)', color=CYAN_ACCENT, fontsize=11, fontweight='bold')
         ax_pace.tick_params(axis='y', colors=CYAN_ACCENT, labelsize=10)
         ax_pace.invert_yaxis()
+
+        valid_paces = [p for p in paces if not np.isnan(p)]
+        pace_ylim = _compute_pace_ylim(valid_paces)
+        if pace_ylim is not None:
+            ax_pace.set_ylim(*pace_ylim)
 
         # 配速軸標籤格式化為 M:SS (例如 5.25 轉為 5:15)
         def pace_fmt(val, pos):
@@ -270,7 +313,7 @@ def generate_laps_trend_chart(laps, save_path="laps_trend_chart.png", decoupling
 
         # --- 繪製心率 (右 Y 軸，強制整數刻度) ---
         ax_hr = ax_pace.twinx()
-        line_hr = ax_hr.plot(lap_nums, hrs, color=RED_ACCENT, marker='s', markersize=6,
+        line_hr = ax_hr.plot(lap_nums, hrs, color=RED_ACCENT, marker='s', markersize=marker_size,
                              lw=2.5, linestyle='--', label='Heart Rate (bpm)', zorder=3)
         ax_hr.set_ylabel('Heart Rate (bpm)', color=RED_ACCENT, fontsize=11, fontweight='bold')
         ax_hr.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=6))
@@ -293,10 +336,11 @@ def generate_laps_trend_chart(laps, save_path="laps_trend_chart.png", decoupling
                          color=PURPLE_ACCENT, fontsize=8.5, fontweight='bold', va='bottom', ha='left',
                          bbox=dict(boxstyle='round,pad=0.3', facecolor=CARD_BG, edgecolor=PURPLE_ACCENT, alpha=0.85, lw=1))
 
-        # X 軸配置
+        # X 軸配置 (依圈數自適應刻度密度，避免全馬 42+ 圈標籤重疊)
+        xticks = _select_lap_ticks(lap_nums)
         ax_pace.set_xlabel('Lap Index (km)', color=TEXT_COLOR, fontsize=11, fontweight='bold')
-        ax_pace.set_xticks(lap_nums)
-        ax_pace.set_xticklabels([f"L{n}" for n in lap_nums], color=TEXT_COLOR, fontsize=10)
+        ax_pace.set_xticks(xticks)
+        ax_pace.set_xticklabels([f"L{n}" for n in xticks], color=TEXT_COLOR, fontsize=10)
         ax_pace.tick_params(axis='x', colors=TEXT_COLOR)
         ax_pace.grid(True, color=GRID_COLOR, linestyle=':', alpha=0.7)
 

@@ -29,6 +29,7 @@ from utils import (
     format_aerobic_decoupling,
     format_upcoming_races,
     format_yesterday_races,
+    format_recent_races,
     format_yesterday_race_context
 )
 from weather_service import (
@@ -97,14 +98,18 @@ def run_main_task():
         else:
             print("ℹ️ 今日無生理恢復數據 (手錶未同步或未配戴入睡)，優雅略過此區塊。")
 
-        # 4. 取得未來目標賽事 (近三個月/90天) 與昨日賽事關聯 (D-1)
-        all_races = fetch_upcoming_races(client_garmin, months_ahead=3, days_back=1)
-        yesterday_races = [r for r in all_races if r.get("days_left", 0) < 0]
+        # 4. 取得未來目標賽事 (近三個月/90天)、昨日賽事 (D-1) 與近7日剛完賽賽事 (D-2~D-7)
+        all_races = fetch_upcoming_races(client_garmin, months_ahead=3, days_back=7)
+        yesterday_races = [r for r in all_races if r.get("days_left", 0) == -1]
+        recent_races = [r for r in all_races if -7 <= r.get("days_left", 0) <= -2]
         upcoming_races = [r for r in all_races if r.get("days_left", 0) >= 0]
         races_str = format_upcoming_races(upcoming_races)
         yesterday_races_str = format_yesterday_races(yesterday_races)
+        recent_races_str = format_recent_races(recent_races)
         if yesterday_races:
             print(f"🏁 偵測到昨日目標賽事日: {', '.join(r['title'] for r in yesterday_races)}")
+        if recent_races:
+            print(f"🏁 偵測到近7日剛完賽賽事: {', '.join(r['title'] for r in recent_races)}")
         if races_str:
             print(f"🏆 成功取得近期目標賽事: {len(upcoming_races)} 場")
         else:
@@ -154,6 +159,10 @@ def run_main_task():
 
             if yesterday_races_str:
                 report.append(yesterday_races_str)
+                report.append("-" * 30)
+
+            if recent_races_str:
+                report.append(recent_races_str)
                 report.append("-" * 30)
 
             if races_str:
@@ -221,6 +230,10 @@ def run_main_task():
 
         if vdot_str:
             report.append(vdot_str)
+            report.append("-" * 30)
+
+        if recent_races_str:
+            report.append(recent_races_str)
             report.append("-" * 30)
 
         if races_str:

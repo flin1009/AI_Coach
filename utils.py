@@ -50,13 +50,17 @@ def format_hr_zones(hr_zones_raw):
     return " | ".join(parts) if parts else None
 
 def clean_ai_text(text):
-    """清理 AI 回覆中可能包含的 LaTeX 數學排版語法，轉為一般文字符號"""
+    """清理 AI 回覆中的 LaTeX 語法與外露的 Markdown 標記，確保 Telegram 純文字版面整潔"""
     if not text:
         return text
     text = re.sub(r'\$?\\rightarrow\$?', '→', text)
     text = re.sub(r'\$?\\to\$?', '→', text)
     text = re.sub(r'\$?\\leftarrow\$?', '←', text)
     text = re.sub(r'\$?\\sim\$?', '~', text)
+    # 清理 Telegram 純文字模式下會外露的 Markdown 語法（保留單星號數學式與底線識別符）
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    text = re.sub(r'(?m)^(\s*)\*\s+', r'\1• ', text)
+    text = re.sub(r'(?m)^#{1,6}\s+', '', text)
     return text
 
 def format_activity_summary(a):
@@ -569,15 +573,30 @@ def format_yesterday_race_context(activity, yesterday_races):
     return False, ""
 
 
+def _format_race_line(race, status_label):
+    """格式化單列賽事清單項目"""
+    dist = race.get("distance_km")
+    dist_str = f" | {dist}km" if dist else ""
+    return f"  - 🚩 {race['date']} ({status_label}) {race['title']}{dist_str}"
+
+
 def format_yesterday_races(yesterday_races):
     """格式化昨日原定/完賽目標賽事區塊（適用於休整日或無跑步紀錄時仍保留賽事脈絡）"""
     if not yesterday_races:
         return ""
     lines = ["🏁 【昨日目標賽事日 (D-1 Race Day)】"]
-    for r in yesterday_races:
-        dist = r.get("distance_km")
-        dist_str = f" | {dist}km" if dist else ""
-        lines.append(f"  - 🚩 {r['date']} (昨日賽事日) {r['title']}{dist_str}")
+    lines.extend(_format_race_line(r, "昨日賽事日") for r in yesterday_races)
+    return "\n".join(lines)
+
+
+def format_recent_races(recent_races):
+    """格式化近 7 日內已完賽之目標賽事（D-2 ~ D-7 賽後恢復期脈絡）"""
+    if not recent_races:
+        return ""
+    lines = ["🏁 【近期剛完賽目標賽事 (近7日內，賽後恢復期參考)】"]
+    for r in sorted(recent_races, key=lambda item: item["date"], reverse=True):
+        days_ago = abs(r.get("days_left", 0))
+        lines.append(_format_race_line(r, f"{days_ago} 天前完賽"))
     return "\n".join(lines)
 
 
@@ -589,8 +608,6 @@ def format_upcoming_races(races):
     lines = ["🏆 【未來目標賽事 (近三個月倒數)】"]
     for r in future_races:
         days = r.get("days_left", 0)
-        dist = r.get("distance_km")
-        dist_str = f" | {dist}km" if dist else ""
         weeks = days // 7
         if days == 0:
             time_str = "🔥 今天比賽日 (Race Day!)"
@@ -600,7 +617,7 @@ def format_upcoming_races(races):
             time_str = f"倒數 {days} 天"
         else:
             time_str = f"倒數 {days} 天 (約 {weeks} 週)"
-        lines.append(f"  - 🚩 {r['date']} ({time_str}) {r['title']}{dist_str}")
+        lines.append(_format_race_line(r, time_str))
     return "\n".join(lines)
 
 
