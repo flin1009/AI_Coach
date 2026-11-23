@@ -111,26 +111,43 @@ def fetch_daily_recovery_metrics(client, target_date=None):
     except Exception:
         return None
 
-def fetch_upcoming_races(client, months_ahead=3):
+def fetch_upcoming_races(client, months_ahead=3, days_back=0):
     """取得未來指定月數內 (預設3個月/90天) 的目標賽事清單，並依日期去重排序
+    - 支援透過 days_back 回溯過去數日 (例如 days_back=1 供昨日活動關聯前一天賽事，包含跨月初情境)
     - 解決跨月日曆網格導致同賽事重複出現的問題 (依據 item.id 唯一性去重)
-    - 嚴格過濾今天至今天+90天內的賽事
-    - 計算倒數天數 (days_left) 與賽事距離 (公里)
+    - 嚴格過濾 (today - days_back) 至 (today + 90天) 內的賽事
+    - 計算倒數天數 (days_left；昨日為 -1，今日為 0) 與賽事距離 (公里)
     - 優雅降級：若 API 連線失敗或無資料，安全回傳空清單 []
     """
     try:
         today = get_local_now().date()
+        min_date = today - datetime.timedelta(days=days_back)
         max_date = today + datetime.timedelta(days=months_ahead * 30)
 
-        # 計算欲查詢的年月份 (包含本月與未來 months_ahead 個月)
+        # 計算欲查詢的年月份 (涵蓋 min_date 所屬月份至未來 months_ahead 個月，避免跨月初漏抓昨日賽事)
         target_months = []
+        seen_months = set()
+
+        def _add_month(y, m):
+            if (y, m) not in seen_months:
+                seen_months.add((y, m))
+                target_months.append((y, m))
+
+        cur_y, cur_m = min_date.year, min_date.month
+        while (cur_y, cur_m) <= (today.year, today.month):
+            _add_month(cur_y, cur_m)
+            cur_m += 1
+            if cur_m > 12:
+                cur_m = 1
+                cur_y += 1
+
         for offset in range(months_ahead + 1):
             m = today.month + offset
             y = today.year
             if m > 12:
                 y += (m - 1) // 12
                 m = ((m - 1) % 12) + 1
-            target_months.append((y, m))
+            _add_month(y, m)
 
         seen_ids = set()
         races = []
@@ -161,8 +178,8 @@ def fetch_upcoming_races(client, months_ahead=3):
                     except Exception:
                         continue
 
-                    # 僅保留今天起三個月內的賽事 (不包含過期賽事)
-                    if today <= race_date <= max_date:
+                    # 僅保留檢索區間內的賽事 (預設 today 起算；若指定 days_back 則一併帶出昨日賽事)
+                    if min_date <= race_date <= max_date:
                         days_left = (race_date - today).days
                         dist_meters = item.get("distance")
                         dist_km = round(dist_meters / 1000.0, 1) if dist_meters else None

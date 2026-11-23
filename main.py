@@ -27,7 +27,9 @@ from utils import (
     format_vdot_paces,
     calculate_aerobic_decoupling,
     format_aerobic_decoupling,
-    format_upcoming_races
+    format_upcoming_races,
+    format_yesterday_races,
+    format_yesterday_race_context
 )
 from weather_service import (
     get_open_meteo_weather,
@@ -95,9 +97,14 @@ def run_main_task():
         else:
             print("ℹ️ 今日無生理恢復數據 (手錶未同步或未配戴入睡)，優雅略過此區塊。")
 
-        # 4. 取得未來目標賽事 (近三個月/90天)
-        upcoming_races = fetch_upcoming_races(client_garmin, months_ahead=3)
+        # 4. 取得未來目標賽事 (近三個月/90天) 與昨日賽事關聯 (D-1)
+        all_races = fetch_upcoming_races(client_garmin, months_ahead=3, days_back=1)
+        yesterday_races = [r for r in all_races if r.get("days_left", 0) < 0]
+        upcoming_races = [r for r in all_races if r.get("days_left", 0) >= 0]
         races_str = format_upcoming_races(upcoming_races)
+        yesterday_races_str = format_yesterday_races(yesterday_races)
+        if yesterday_races:
+            print(f"🏁 偵測到昨日目標賽事日: {', '.join(r['title'] for r in yesterday_races)}")
         if races_str:
             print(f"🏆 成功取得近期目標賽事: {len(upcoming_races)} 場")
         else:
@@ -143,6 +150,10 @@ def run_main_task():
 
             if vdot_str:
                 report.append(vdot_str)
+                report.append("-" * 30)
+
+            if yesterday_races_str:
+                report.append(yesterday_races_str)
                 report.append("-" * 30)
 
             if races_str:
@@ -229,10 +240,14 @@ def run_main_task():
         report.append(f"  - 急性負荷 (近7日): {acwr_data['acute_load']} | 慢性負荷 (28日週均): {acwr_data['chronic_load']}")
         report.append("-" * 30)
 
-        # 5. 近期訓練脈絡 (截至昨日之歷程簡要列表)
+        # 5. 近期訓練脈絡 (截至昨日之歷程簡要列表) 與昨日賽事判定
+        is_yesterday_race, yesterday_race_note = format_yesterday_race_context(primary_act, yesterday_races)
         report.append(f"📋 【近期訓練歷程 (截至昨日，近 {len(display_history)} 筆摘要)】")
         for act in display_history:
-            tag = " [昨日主分析]" if act is primary_act else ""
+            if act is primary_act:
+                tag = " [昨日主分析 | 正式賽事]" if is_yesterday_race else " [昨日主分析]"
+            else:
+                tag = ""
             summary_line = format_activity_summary(act)
             report.append(f"  - {summary_line}{tag}")
         report.append("-" * 30)
@@ -243,6 +258,10 @@ def run_main_task():
         s_dto = latest_act.get('summaryDTO', {})
         
         entry = f"🏃 【昨日活動深度數據 ({yesterday_label})】"
+        if yesterday_race_note:
+            entry += f"\n{yesterday_race_note}"
+        if latest_act.get("activityName"):
+            entry += f"\n🏷️ 名稱: {latest_act.get('activityName')}"
         entry += f"\n📍 地點: {latest_act.get('locationName', 'Unknown')}"
         entry += f"\n📅 日期: {latest_act.get('startTimeLocal')}"
         entry += f"\n類型: {latest_act.get('activityType', {}).get('typeKey')} | 距離: {latest_act.get('distance', 0)/1000:.2f}km | 卡路里: {int(latest_act.get('calories', 0))} kcal"

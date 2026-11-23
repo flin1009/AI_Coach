@@ -545,12 +545,49 @@ def format_aerobic_decoupling(decoupling_data):
         lines.append("  - 備註: 偵測到各圈配速落差較大 (間歇/變速課表)，前後半程心率漂移數值僅供參考。")
     return "\n".join(lines)
 
+def _format_race_label(race):
+    """格式化單場賽事名稱與距離摘要"""
+    dist = race.get("distance_km")
+    dist_str = f" ({dist}km)" if dist else ""
+    return f"{race['title']}{dist_str}"
+
+
+def format_yesterday_race_context(activity, yesterday_races):
+    """判斷昨日活動是否為正式賽事，並回傳 (is_race, 說明文字)"""
+    event_dto = (activity or {}).get("eventTypeDTO") or {}
+    event_type = str(event_dto.get("typeKey") or "").lower()
+    is_event_race = event_type == "race"
+
+    if yesterday_races:
+        race_names = "；".join(_format_race_label(r) for r in yesterday_races)
+        suffix = " [活動事件類型: race]" if is_event_race else ""
+        return True, f"🏁 賽事關聯: 昨日為 Garmin 排定目標賽事日 (Race Day) — {race_names}{suffix}"
+
+    if is_event_race:
+        return True, "🏁 賽事標記: 活動事件類型為正式賽事 (eventType: race)"
+
+    return False, ""
+
+
+def format_yesterday_races(yesterday_races):
+    """格式化昨日原定/完賽目標賽事區塊（適用於休整日或無跑步紀錄時仍保留賽事脈絡）"""
+    if not yesterday_races:
+        return ""
+    lines = ["🏁 【昨日目標賽事日 (D-1 Race Day)】"]
+    for r in yesterday_races:
+        dist = r.get("distance_km")
+        dist_str = f" | {dist}km" if dist else ""
+        lines.append(f"  - 🚩 {r['date']} (昨日賽事日) {r['title']}{dist_str}")
+    return "\n".join(lines)
+
+
 def format_upcoming_races(races):
-    """格式化未來三個月內之目標賽事清單與倒數"""
-    if not races:
+    """格式化未來三個月內之目標賽事清單與倒數（僅包含今日與未來賽事）"""
+    future_races = [r for r in (races or []) if r.get("days_left", 0) >= 0]
+    if not future_races:
         return ""
     lines = ["🏆 【未來目標賽事 (近三個月倒數)】"]
-    for r in races:
+    for r in future_races:
         days = r.get("days_left", 0)
         dist = r.get("distance_km")
         dist_str = f" | {dist}km" if dist else ""

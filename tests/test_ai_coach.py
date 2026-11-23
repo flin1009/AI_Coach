@@ -182,6 +182,28 @@ class TestUtils(unittest.TestCase):
     def test_clean_ai_text(self):
         self.assertEqual(utils.clean_ai_text(r"A $\rightarrow$ B \to C"), "A → B → C")
 
+    def test_format_upcoming_races_excludes_past_and_formats_yesterday_context(self):
+        races = [
+            {"title": "2026 Mother Marathon 北港媽祖盃全國馬拉松", "date": "2026-11-21", "days_left": -1, "distance_km": 42.2},
+            {"title": "Taipei Marathon", "date": "2026-12-20", "days_left": 28, "distance_km": 42.2},
+        ]
+        upcoming_text = utils.format_upcoming_races(races)
+        self.assertIn("Taipei Marathon", upcoming_text)
+        self.assertNotIn("2026 Mother Marathon", upcoming_text)
+
+        is_race, note = utils.format_yesterday_race_context({"eventTypeDTO": {"typeKey": "race"}}, [races[0]])
+        self.assertTrue(is_race)
+        self.assertIn("2026 Mother Marathon 北港媽祖盃全國馬拉松 (42.2km)", note)
+        self.assertIn("[活動事件類型: race]", note)
+
+        is_watch_race, watch_note = utils.format_yesterday_race_context({"eventTypeDTO": {"typeKey": "race"}}, [])
+        self.assertTrue(is_watch_race)
+        self.assertIn("eventType: race", watch_note)
+
+        is_plain, plain_note = utils.format_yesterday_race_context({"eventTypeDTO": {"typeKey": "uncategorized"}}, [])
+        self.assertFalse(is_plain)
+        self.assertEqual(plain_note, "")
+
 
 class TestGarminService(unittest.TestCase):
     def test_fetch_extended_activities_prefers_date_range_and_falls_back(self):
@@ -219,6 +241,35 @@ class TestGarminService(unittest.TestCase):
             self.assertEqual(len(races), 1)
             self.assertEqual(races[0]["days_left"], 0)
             self.assertEqual(races[0]["distance_km"], 42.2)
+
+    def test_fetch_upcoming_races_includes_yesterday_across_month_boundary(self):
+        fake_now = datetime.datetime(2026, 12, 1, 4, 0, 0)
+        mock_client = MagicMock()
+
+        def fake_get_scheduled_workouts(year, month):
+            if (year, month) == (2026, 11):
+                return {
+                    "calendarItems": [{
+                        "id": 999,
+                        "itemType": "event",
+                        "date": "2026-11-30",
+                        "title": "Month End Marathon",
+                        "distance": 42195,
+                    }]
+                }
+            return {"calendarItems": []}
+
+        mock_client.get_scheduled_workouts.side_effect = fake_get_scheduled_workouts
+
+        with patch.object(garmin_service, "get_local_now", return_value=fake_now):
+            races_default = garmin_service.fetch_upcoming_races(mock_client, months_ahead=1)
+            self.assertEqual(races_default, [])
+
+            races_with_yest = garmin_service.fetch_upcoming_races(mock_client, months_ahead=1, days_back=1)
+            self.assertEqual(len(races_with_yest), 1)
+            self.assertEqual(races_with_yest[0]["title"], "Month End Marathon")
+            self.assertEqual(races_with_yest[0]["days_left"], -1)
+            mock_client.get_scheduled_workouts.assert_any_call(2026, 11)
 
 
 class TestWeatherService(unittest.TestCase):
@@ -330,6 +381,23 @@ class TestAIService(unittest.TestCase):
         text, used = ai_service.generate_rest_day_advice(None, ["models/m1"], "report")
         self.assertEqual(used, "fallback-rule-engine")
         self.assertIn("GEMINI_API_KEY", text)
+
+    def test_generate_coach_advice_prompt_includes_race_guidance(self):
+        mock_client = MagicMock()
+        captured = []
+
+        def fake_generate(model, contents):
+            captured.append(contents)
+            resp = MagicMock()
+            resp.text = "Race Analysis"
+            return resp
+
+        mock_client.models.generate_content.side_effect = fake_generate
+        ai_service.generate_coach_advice(mock_client, ["models/m1"], "🏁 賽事關聯: Test Marathon")
+        self.assertEqual(len(captured), 1)
+        self.assertIn("正式賽事 (Race Day)", captured[0])
+        self.assertIn("🏁 賽事關聯", captured[0])
+        self.assertIn("賽後恢復期", captured[0])
 
 
 class TestNotifier(unittest.TestCase):
@@ -477,6 +545,82 @@ class TestMainFlow(unittest.TestCase):
         self.assertIn("今日休整超補償", sent_texts[0])
         self.assertIn("(🤖 使用模型：gemini-2.5-flash，由 gemini-4-hydrogen 容錯切換)", sent_texts[0])
         self.assertEqual(len(sent_photos), 1)
+
+    def test_run_main_task_day_after_race_carries_yesterday_race_context(self):
+        fake_now = datetime.datetime(2026, 11, 22, 4, 0, 0)
+        activities = [
+            {
+                "activityId": 777,
+                "activityName": "2026 Mother Marathon",
+                "startTimeLocal": "2026-11-21 06:00:00",
+                "activityType": {"typeKey": "running"},
+                "locationName": "Beigang",
+                "distance": 42195,
+                "duration": 13500,
+                "movingDuration": 13450,
+                "averageSpeed": 3.12,
+                "maxSpeed": 3.6,
+                "averageHR": 162,
+                "maxHR": 178,
+                "calories": 2800,
+                "aerobicTrainingEffect": 5.0,
+                "anaerobicTrainingEffect": 0.8,
+            }
+        ]
+        races = [
+            {
+                "id": 555,
+                "title": "2026 Mother Marathon 北港媽祖盃全國馬拉松",
+                "date": "2026-11-21",
+                "days_left": -1,
+                "distance_km": 42.2,
+            },
+            {
+                "id": 556,
+                "title": "2026 Taipei Marathon",
+                "date": "2026-12-20",
+                "days_left": 28,
+                "distance_km": 42.2,
+            },
+        ]
+        captured_prompts = []
+        sent_texts = []
+
+        def fake_coach(client, models, report_text):
+            captured_prompts.append(report_text)
+            return ("訓練型態判定：正式賽事（2026 Mother Marathon）", "models/gemini-4-hydrogen")
+
+        with tempfile.TemporaryDirectory() as tmpdir, \
+             patch.object(main, "LOCAL_SAVE_DIR", tmpdir), \
+             patch.object(main, "get_local_now", return_value=fake_now), \
+             patch.object(utils, "get_local_now", return_value=fake_now), \
+             patch.object(main, "get_genai_client", return_value=MagicMock()), \
+             patch.object(main, "detect_candidate_models", return_value=["models/gemini-4-hydrogen"]), \
+             patch.object(main, "get_garmin_client", return_value=MagicMock()), \
+             patch.object(main, "fetch_recent_activities", return_value=activities), \
+             patch.object(main, "fetch_extended_activities", return_value=activities), \
+             patch.object(main, "fetch_daily_recovery_metrics", return_value=None), \
+             patch.object(main, "fetch_upcoming_races", return_value=races) as mock_races, \
+             patch.object(main, "get_today_weather_forecast", return_value=None), \
+             patch.object(main, "fetch_activity_hr_zones", return_value=None), \
+             patch.object(main, "get_open_meteo_weather", return_value=None), \
+             patch.object(main, "fetch_activity_splits", return_value=[]), \
+             patch.object(main, "generate_coach_advice", side_effect=fake_coach), \
+             patch.object(main, "send_telegram", side_effect=sent_texts.append), \
+             patch.object(main, "send_telegram_photo"), \
+             patch.object(main.time, "sleep"):
+            main.run_main_task()
+
+        mock_races.assert_called_once_with(unittest.mock.ANY, months_ahead=3, days_back=1)
+        self.assertEqual(len(captured_prompts), 1)
+        report_sent_to_ai = captured_prompts[0]
+        self.assertIn("[昨日主分析 | 正式賽事]", report_sent_to_ai)
+        self.assertIn("🏁 賽事關聯: 昨日為 Garmin 排定目標賽事日 (Race Day) — 2026 Mother Marathon 北港媽祖盃全國馬拉松 (42.2km)", report_sent_to_ai)
+        self.assertIn("🏷️ 名稱: 2026 Mother Marathon", report_sent_to_ai)
+        self.assertIn("2026 Taipei Marathon", report_sent_to_ai)
+        # 昨日已完賽賽事不應出現在「未來目標賽事」清單中
+        upcoming_section = report_sent_to_ai.split("🏆 【未來目標賽事")[1].split("-" * 30)[0]
+        self.assertNotIn("2026 Mother Marathon", upcoming_section)
 
 
 if __name__ == "__main__":
