@@ -1,12 +1,62 @@
+import base64
 import datetime
+import json
+import os
 from garminconnect import Garmin
-from config import GARMIN_EMAIL, GARMIN_PWD
+from config import GARMIN_EMAIL, GARMIN_PWD, GARMIN_TOKENS
 from utils import get_local_now
 
+
+def _normalize_tokenstore(raw_token):
+    """將 GARMINTOKENS 正規化為 garminconnect 可識別的 JSON 字串或路徑（兼容 raw JSON 與 Base64）"""
+    if not raw_token:
+        return None
+    token = raw_token.strip()
+    if not token:
+        return None
+    if token.startswith("{"):
+        return token
+    if os.path.exists(os.path.expanduser(token)):
+        return token
+    try:
+        decoded = base64.b64decode(token, validate=True).decode("utf-8").strip()
+        if decoded.startswith("{"):
+            json.loads(decoded)
+            return decoded
+    except Exception:
+        pass
+    return token
+
+
 def get_garmin_client():
-    """登入並回傳 Garmin 客戶端實例 (原方式：帳號密碼直接登入)"""
-    if not GARMIN_EMAIL or not GARMIN_PWD:
-        raise ValueError("找不到 GARMIN_EMAIL 或 GARMIN_PWD 環境變數")
+    """登入並回傳 Garmin 客戶端實例（優先以 GARMINTOKENS 登入，失敗或未設定時退回帳號密碼登入）"""
+    tokenstore = _normalize_tokenstore(GARMIN_TOKENS)
+    has_credentials = bool(GARMIN_EMAIL and GARMIN_PWD)
+
+    if not tokenstore and not has_credentials:
+        raise ValueError("找不到 GARMINTOKENS 或 GARMIN_EMAIL / GARMIN_PWD 環境變數")
+
+    if tokenstore:
+        print("[Garmin] 偵測到 GARMINTOKENS，優先嘗試透過 OAuth Token 連線登入...")
+        try:
+            client = Garmin(GARMIN_EMAIL, GARMIN_PWD)
+            client.login(tokenstore)
+            print("[Garmin] 登入成功！")
+            return client
+        except Exception as token_err:
+            if not has_credentials:
+                raise
+            print(f"⚠️ [Garmin] OAuth Token 登入失敗 ({token_err})，自動降級為帳號密碼登入...")
+            # 暫時移除環境變數中的 GARMINTOKENS，避免 Garmin.login() 重讀無效 Token
+            prev_env_token = os.environ.pop("GARMINTOKENS", None)
+            try:
+                client = Garmin(GARMIN_EMAIL, GARMIN_PWD)
+                client.login()
+                print("[Garmin] 帳號密碼備援登入成功！")
+                return client
+            finally:
+                if prev_env_token is not None:
+                    os.environ["GARMINTOKENS"] = prev_env_token
 
     print("[Garmin] 正在透過帳號密碼連線 Garmin 登入...")
     client = Garmin(GARMIN_EMAIL, GARMIN_PWD)

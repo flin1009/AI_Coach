@@ -14,6 +14,7 @@ def _get_env(key, default=""):
 # GitHub Actions 會將 Secrets 映射到這些變數名稱
 GARMIN_EMAIL = _get_env("GARMIN_EMAIL", None)
 GARMIN_PWD = _get_env("GARMIN_PWD", None)
+GARMIN_TOKENS = _get_env("GARMINTOKENS", None)
 TG_TOKEN = _get_env("TG_TOKEN", None)
 TG_CHAT_ID = _get_env("TG_CHAT_ID", None)
 GEMINI_API_KEY = _get_env("GEMINI_API_KEY", None)

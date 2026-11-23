@@ -1,5 +1,7 @@
+import base64
 import datetime
 import importlib
+import json
 import os
 import sys
 import tempfile
@@ -292,6 +294,51 @@ class TestGarminService(unittest.TestCase):
             self.assertEqual(races_with_yest[0]["title"], "Month End Marathon")
             self.assertEqual(races_with_yest[0]["days_left"], -1)
             mock_client.get_scheduled_workouts.assert_any_call(2026, 11)
+
+    def test_get_garmin_client_prefers_tokenstore_and_decodes_base64(self):
+        raw_json = json.dumps({"di_token": "tok", "di_refresh_token": "ref", "di_client_id": "cid"})
+        b64_token = base64.b64encode(raw_json.encode("utf-8")).decode("ascii")
+        mock_instance = MagicMock()
+
+        with patch.object(garmin_service, "GARMIN_EMAIL", None), \
+             patch.object(garmin_service, "GARMIN_PWD", None), \
+             patch.object(garmin_service, "GARMIN_TOKENS", b64_token), \
+             patch.object(garmin_service, "Garmin", return_value=mock_instance) as mock_garmin:
+            client = garmin_service.get_garmin_client()
+            self.assertIs(client, mock_instance)
+            mock_garmin.assert_called_once_with(None, None)
+            mock_instance.login.assert_called_once_with(raw_json)
+
+    def test_get_garmin_client_falls_back_to_credentials_when_token_fails(self):
+        raw_json = '{"di_token": "bad"}'
+        first_client = MagicMock()
+        first_client.login.side_effect = RuntimeError("Expired token")
+        second_client = MagicMock()
+
+        def verify_env_cleared():
+            self.assertNotIn("GARMINTOKENS", os.environ)
+            return (None, None)
+
+        second_client.login.side_effect = verify_env_cleared
+
+        with patch.dict(os.environ, {"GARMINTOKENS": raw_json}, clear=False), \
+             patch.object(garmin_service, "GARMIN_EMAIL", "runner@example.com"), \
+             patch.object(garmin_service, "GARMIN_PWD", "secret"), \
+             patch.object(garmin_service, "GARMIN_TOKENS", raw_json), \
+             patch.object(garmin_service, "Garmin", side_effect=[first_client, second_client]) as mock_garmin:
+            client = garmin_service.get_garmin_client()
+            self.assertIs(client, second_client)
+            self.assertEqual(mock_garmin.call_count, 2)
+            first_client.login.assert_called_once_with(raw_json)
+            second_client.login.assert_called_once_with()
+            self.assertEqual(os.environ.get("GARMINTOKENS"), raw_json)
+
+    def test_get_garmin_client_requires_token_or_credentials(self):
+        with patch.object(garmin_service, "GARMIN_EMAIL", None), \
+             patch.object(garmin_service, "GARMIN_PWD", None), \
+             patch.object(garmin_service, "GARMIN_TOKENS", None):
+            with self.assertRaises(ValueError):
+                garmin_service.get_garmin_client()
 
 
 class TestWeatherService(unittest.TestCase):
