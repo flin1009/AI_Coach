@@ -154,8 +154,15 @@ def select_yesterday_activity(activities, reference_now=None):
 
     history_up_to_yesterday = []
     yesterday_items = []
+    seen_ids = set()
 
     for act in activities:
+        act_id = act.get("activityId")
+        if act_id is not None:
+            if act_id in seen_ids:
+                continue
+            seen_ids.add(act_id)
+
         start_time_str = act.get("startTimeLocal", "")
         if not start_time_str or len(start_time_str) < 10:
             continue
@@ -175,6 +182,8 @@ def select_yesterday_activity(activities, reference_now=None):
         if act_date == yesterday_date:
             yesterday_items.append((act, diff_hours))
 
+    # 依時間由新到舊排序 (diff_hours 由小到大)，確保對 API 回傳順序無依賴
+    history_up_to_yesterday.sort(key=lambda item: item[1])
     history_acts = [a for a, _ in history_up_to_yesterday]
     latest_diff = history_up_to_yesterday[0][1] if history_up_to_yesterday else 999.0
 

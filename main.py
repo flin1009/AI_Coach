@@ -1,5 +1,6 @@
 import datetime
 import os
+import sys
 import time
 from config import (
     ACTIVITIES_COUNT,
@@ -131,10 +132,11 @@ def run_main_task():
                 f"🌤️ 【今日訓練時段氣象預報 ({today_label})】",
             )
 
+        activity_pool = list(activities) + list(extended_activities or [])
         primary_act, other_yesterday_acts, history_acts, diff_hours = select_yesterday_activity(
-            activities, reference_now=local_now
+            activity_pool, reference_now=local_now
         )
-        display_history = history_acts if history_acts else activities
+        display_history = history_acts[:ACTIVITIES_COUNT]
 
         # 若昨日 (D-1) 無任何運動紀錄，自動切換為【昨日休整與今日恢復日報】模式
         if primary_act is None:
@@ -434,6 +436,7 @@ def run_main_task():
     except Exception as e:
         print(f"❌ 腳本執行錯誤: {str(e)}")
         send_telegram(f"❌ Garmin 報表執行錯誤: {str(e)}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     run_main_task()

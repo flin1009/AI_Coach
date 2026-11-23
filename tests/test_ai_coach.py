@@ -127,6 +127,18 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(len(history), 1)
         self.assertAlmostEqual(diff, 34.0)
 
+    def test_select_yesterday_activity_dedups_and_sorts_newest_first(self):
+        fake_now = datetime.datetime(2026, 11, 16, 4, 0, 0)
+        activities = [
+            {"activityId": 1, "startTimeLocal": "2026-11-12 18:00:00", "activityType": {"typeKey": "running"}, "distance": 5000, "duration": 1500},
+            {"activityId": 2, "startTimeLocal": "2026-11-14 18:00:00", "activityType": {"typeKey": "running"}, "distance": 8000, "duration": 2400},
+            {"activityId": 2, "startTimeLocal": "2026-11-14 18:00:00", "activityType": {"typeKey": "running"}, "distance": 8000, "duration": 2400},
+        ]
+        primary, _, history, diff = utils.select_yesterday_activity(activities, reference_now=fake_now)
+        self.assertIsNone(primary)
+        self.assertEqual([a["activityId"] for a in history], [2, 1])
+        self.assertAlmostEqual(diff, 34.0)
+
     def test_calculate_acwr_zones_and_excludes_today(self):
         fake_now = datetime.datetime(2026, 11, 16, 4, 0, 0)
         activities = [
@@ -717,6 +729,54 @@ class TestMainFlow(unittest.TestCase):
         self.assertIn("🏁 【近期剛完賽目標賽事 (近7日內，賽後恢復期參考)】", captured_prompts[0])
         self.assertIn("2 天前完賽", captured_prompts[0])
         self.assertIn("2026 Mother Marathon 北港媽祖盃全國馬拉松", captured_prompts[0])
+
+    def test_run_main_task_uses_extended_activities_when_recent_window_is_crowded(self):
+        fake_now = datetime.datetime(2026, 11, 16, 8, 0, 0)
+        recent_only_today = [
+            {"activityId": 99, "startTimeLocal": "2026-11-16 06:00:00", "activityType": {"typeKey": "running"}, "distance": 5000, "duration": 1500}
+        ]
+        extended = recent_only_today + [
+            {"activityId": 50, "startTimeLocal": "2026-11-15 17:00:00", "activityType": {"typeKey": "running"}, "distance": 12000, "duration": 3600}
+        ]
+        sent_texts = []
+
+        with tempfile.TemporaryDirectory() as tmpdir, \
+             patch.object(main, "LOCAL_SAVE_DIR", tmpdir), \
+             patch.object(main, "get_local_now", return_value=fake_now), \
+             patch.object(utils, "get_local_now", return_value=fake_now), \
+             patch.object(main, "get_genai_client", return_value=MagicMock()), \
+             patch.object(main, "detect_candidate_models", return_value=["models/gemini-4-hydrogen"]), \
+             patch.object(main, "get_garmin_client", return_value=MagicMock()), \
+             patch.object(main, "fetch_recent_activities", return_value=recent_only_today), \
+             patch.object(main, "fetch_extended_activities", return_value=extended), \
+             patch.object(main, "fetch_daily_recovery_metrics", return_value=None), \
+             patch.object(main, "fetch_upcoming_races", return_value=[]), \
+             patch.object(main, "get_today_weather_forecast", return_value=None), \
+             patch.object(main, "fetch_activity_hr_zones", return_value=None), \
+             patch.object(main, "get_open_meteo_weather", return_value=None), \
+             patch.object(main, "fetch_activity_splits", return_value=[]), \
+             patch.object(main, "generate_coach_advice", return_value=("昨日 12km 表現良好", "models/gemini-4-hydrogen")), \
+             patch.object(main, "send_telegram", side_effect=sent_texts.append), \
+             patch.object(main, "send_telegram_photo"), \
+             patch.object(main.time, "sleep"):
+            main.run_main_task()
+
+        self.assertEqual(len(sent_texts), 1)
+        self.assertIn("12.00km", sent_texts[0])
+        self.assertIn("昨日 12km 表現良好", sent_texts[0])
+
+    def test_run_main_task_exits_nonzero_on_fatal_error(self):
+        sent_texts = []
+        with patch.object(main, "get_genai_client", return_value=MagicMock()), \
+             patch.object(main, "detect_candidate_models", return_value=["models/gemini-4-hydrogen"]), \
+             patch.object(main, "get_garmin_client", side_effect=RuntimeError("Auth failed")), \
+             patch.object(main, "send_telegram", side_effect=sent_texts.append):
+            with self.assertRaises(SystemExit) as ctx:
+                main.run_main_task()
+
+        self.assertEqual(ctx.exception.code, 1)
+        self.assertEqual(len(sent_texts), 1)
+        self.assertIn("❌ Garmin 報表執行錯誤: Auth failed", sent_texts[0])
 
 
 if __name__ == "__main__":
