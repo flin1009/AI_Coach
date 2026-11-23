@@ -107,19 +107,28 @@ def format_activity_summary(a):
 
     return " | ".join(parts)
  
+def _format_lap_distance(dist_meters):
+    """格式化單圈距離（>=1km 顯示 km，不足 1km 顯示公尺）"""
+    dist_m = float(dist_meters or 0)
+    if dist_m >= 1000:
+        return f"{dist_m / 1000.0:.2f}km"
+    return f"{int(round(dist_m))}m"
+
+
 def format_laps_table(laps):
     """格式化分圈細節清單 (原方式：純文字清單，無任何 HTML 標籤，保證相容所有裝置)"""
     if not laps:
         return ""
-    lines = ["[分圈細節 (配速 | 心率 | 海拔上升 | 步頻 | 總時間)]"]
+    lines = ["[分圈細節 (距離 | 配速 | 心率 | 海拔上升 | 步頻 | 總時間)]"]
     for lap in laps:
         l_idx = lap.get("lapIndex", 0)
+        l_dist = _format_lap_distance(lap.get("distance", 0))
         l_pace = format_pace(lap.get("averageSpeed", 0))
         l_hr = int(lap.get("averageHR", 0))
         l_elev = int(lap.get("elevationGain", 0))
         l_cad = int(lap.get("averageRunCadence", 0))
         l_time = format_duration(lap.get("duration", 0))
-        lines.append(f"  - L{l_idx+1:02d}: {l_pace} | {l_hr}bpm | {l_elev}m | {l_cad}spm | {l_time}")
+        lines.append(f"  - L{l_idx+1:02d}: {l_dist} | {l_pace} | {l_hr}bpm | {l_elev}m | {l_cad}spm | {l_time}")
     return "\n".join(lines)
 
 def check_activity_recency(start_time_str, max_hours=26):
@@ -235,6 +244,61 @@ def calculate_weekly_stats(activities):
         "total_activities": len(activities)
     }
 
+def _iter_historical_window(activities, reference_now=None):
+    """走訪截至昨日 (D-1 23:59:59) 之活動，回傳 (act, in_7d, in_28d)（依 activityId 去重）"""
+    now = reference_now or get_local_now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    acute_cutoff = today_start - datetime.timedelta(days=7)
+    chronic_cutoff = today_start - datetime.timedelta(days=28)
+    seen_ids = set()
+
+    for a in activities or []:
+        act_id = a.get("activityId")
+        if act_id is not None:
+            if act_id in seen_ids:
+                continue
+            seen_ids.add(act_id)
+
+        start_time_str = a.get("startTimeLocal", "")
+        if not start_time_str:
+            continue
+        try:
+            clean_time = start_time_str.replace("T", " ")[:19]
+            act_dt = datetime.datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            continue
+
+        if act_dt >= today_start:
+            continue
+
+        yield a, (act_dt >= acute_cutoff), (act_dt >= chronic_cutoff)
+
+
+def calculate_rolling_mileage(activities, reference_now=None):
+    """計算截至昨日之近 7 日累積跑量與近 28 日週均跑量（僅計入跑步/跑步機活動）"""
+    dist_7d_m = 0.0
+    dist_28d_m = 0.0
+    count_7d = 0
+
+    for a, in_7d, in_28d in _iter_historical_window(activities, reference_now=reference_now):
+        type_key = a.get("activityType", {}).get("typeKey", "").lower()
+        if "running" not in type_key and "treadmill" not in type_key:
+            continue
+        dist = float(a.get("distance", 0) or 0)
+        if in_7d:
+            dist_7d_m += dist
+            count_7d += 1
+        if in_28d:
+            dist_28d_m += dist
+
+    return {
+        "run_km_7d": round(dist_7d_m / 1000.0, 2),
+        "run_count_7d": count_7d,
+        "run_km_28d_weekly_avg": round((dist_28d_m / 1000.0) / 4.0, 2),
+        "run_km_28d_total": round(dist_28d_m / 1000.0, 2),
+    }
+
+
 def calculate_acwr(activities, reference_now=None):
     """計算 ACWR (急性與慢性負荷比, Acute:Chronic Workload Ratio)
     - 嚴格以設定時區「截至昨日為止」的完整日曆天計算：
@@ -255,33 +319,16 @@ def calculate_acwr(activities, reference_now=None):
             "status_zone": "none"
         }
     
-    now = reference_now or get_local_now()
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    acute_cutoff = today_start - datetime.timedelta(days=7)
-    chronic_cutoff = today_start - datetime.timedelta(days=28)
-    
     acute_load = 0.0
     chronic_load_total = 0.0
     
-    for a in activities:
-        start_time_str = a.get("startTimeLocal", "")
-        if not start_time_str:
-            continue
-        try:
-            clean_time = start_time_str.replace("T", " ")[:19]
-            act_dt = datetime.datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
-        except Exception:
-            continue
-            
-        if act_dt >= today_start:
-            continue
-
+    for a, in_7d, in_28d in _iter_historical_window(activities, reference_now=reference_now):
         s_dto = a.get("summaryDTO", {})
         load = float(s_dto.get("activityTrainingLoad") or a.get("activityTrainingLoad") or 0)
         
-        if act_dt >= acute_cutoff:
+        if in_7d:
             acute_load += load
-        if act_dt >= chronic_cutoff:
+        if in_28d:
             chronic_load_total += load
             
     # 28 天 (4 週) 之週平均負荷
@@ -470,7 +517,7 @@ def calculate_aerobic_decoupling(laps):
         total_d = sum(l.get("distance", 0) for l in half_laps)
         total_t = sum(l.get("duration", 0) for l in half_laps)
         if total_t <= 0 or total_d <= 0:
-            return None, 0, 0, False
+            return None, 0, 0, False, 0
 
         avg_speed = total_d / total_t  # m/s
         total_hr_dur = sum(l.get("averageHR", 0) * l.get("duration", 0) for l in half_laps if l.get("averageHR"))
@@ -483,14 +530,14 @@ def calculate_aerobic_decoupling(laps):
             p_weight = sum(l.get("duration", 0) for l in half_laps if l.get("avgPower"))
             avg_p = (p_dur / p_weight) if p_weight > 0 else 0
             ef = avg_p / avg_hr if avg_hr > 0 else 0
-            return ef, avg_p, avg_hr, True
+            return ef, avg_p, avg_hr, True, avg_speed
         else:
             speed_mpm = avg_speed * 60.0
             ef = speed_mpm / avg_hr if avg_hr > 0 else 0
-            return ef, avg_speed, avg_hr, False
+            return ef, avg_speed, avg_hr, False, avg_speed
 
-    ef1, val1, hr1, is_pwr = get_half_ef(first_half_laps)
-    ef2, val2, hr2, _ = get_half_ef(second_half_laps)
+    ef1, val1, hr1, is_pwr, spd1 = get_half_ef(first_half_laps)
+    ef2, val2, hr2, _, spd2 = get_half_ef(second_half_laps)
 
     if not ef1 or not ef2 or ef1 <= 0:
         return None
@@ -536,6 +583,8 @@ def calculate_aerobic_decoupling(laps):
         "hr2": int(round(hr2)),
         "val1": round(val1, 1),
         "val2": round(val2, 1),
+        "speed1": round(spd1, 3),
+        "speed2": round(spd2, 3),
         "is_power": is_pwr,
         "is_steady_state": is_steady_state,
         "split_lap_x": len(first_half_laps) + 0.5,
@@ -544,16 +593,31 @@ def calculate_aerobic_decoupling(laps):
     }
 
 def format_aerobic_decoupling(decoupling_data):
-    """將有氧解耦率格式化為易讀報告文字"""
+    """將有氧解耦率與前後半程配速分配格式化為易讀報告文字"""
     if not decoupling_data:
         return ""
     d_pct = decoupling_data["decoupling_pct"]
     sign = "+" if d_pct > 0 else ""
-    lines = [
-        "💓 【有氧解耦率 (Aerobic Decoupling / 前後半程心率漂移)】",
-        f"  - 前半程 vs 後半程心率: {decoupling_data['hr1']} bpm → {decoupling_data['hr2']} bpm",
-        f"  - 解耦漂移率: {sign}{d_pct}% ({decoupling_data['status_desc']})"
-    ]
+    lines = ["💓 【有氧解耦率 (Aerobic Decoupling / 前後半程心率漂移)】"]
+
+    spd1 = decoupling_data.get("speed1") or (0 if decoupling_data.get("is_power") else decoupling_data.get("val1"))
+    spd2 = decoupling_data.get("speed2") or (0 if decoupling_data.get("is_power") else decoupling_data.get("val2"))
+    if spd1 and spd1 > 0 and spd2 and spd2 > 0:
+        sec1 = int(round(1000.0 / spd1))
+        sec2 = int(round(1000.0 / spd2))
+        p1 = f"{sec1 // 60}:{sec1 % 60:02d}"
+        p2 = f"{sec2 // 60}:{sec2 % 60:02d}"
+        diff_sec = sec2 - sec1
+        if diff_sec < 0:
+            split_desc = f"負分段快 {abs(diff_sec)} 秒/km (Negative Split)"
+        elif diff_sec > 0:
+            split_desc = f"後半程掉速 +{diff_sec} 秒/km (Positive Split)"
+        else:
+            split_desc = "前後半程配速一致 (Even Split)"
+        lines.append(f"  - 前半程 vs 後半程配速: {p1} → {p2} ({split_desc})")
+
+    lines.append(f"  - 前半程 vs 後半程心率: {decoupling_data['hr1']} bpm → {decoupling_data['hr2']} bpm")
+    lines.append(f"  - 解耦漂移率: {sign}{d_pct}% ({decoupling_data['status_desc']})")
     if not decoupling_data.get("is_steady_state", True):
         lines.append("  - 備註: 偵測到各圈配速落差較大 (間歇/變速課表)，前後半程心率漂移數值僅供參考。")
     return "\n".join(lines)

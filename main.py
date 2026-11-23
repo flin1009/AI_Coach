@@ -22,6 +22,7 @@ from utils import (
     format_laps_table,
     select_yesterday_activity,
     calculate_weekly_stats,
+    calculate_rolling_mileage,
     calculate_acwr,
     format_recovery_metrics,
     calculate_vdot_paces,
@@ -67,6 +68,17 @@ def _format_ai_section(section_title, ai_advice, used_model, best_model):
     return f"\n\n{section_title}\n{model_note}\n{ai_advice}"
 
 
+def _format_acwr_lines(acwr_data, mileage_data):
+    """組裝 ACWR 負荷與 7/28 日跑量監控區塊"""
+    return [
+        "📈 【ACWR 急性與慢性負荷監控 (截至昨日，近28日)】",
+        f"  - ACWR 比值: {acwr_data['acwr']} ({acwr_data['status_desc']})",
+        f"  - 急性負荷 (近7日): {acwr_data['acute_load']} | 慢性負荷 (28日週均): {acwr_data['chronic_load']}",
+        f"  - 跑量統計: 近7日 {mileage_data['run_km_7d']:.2f} km ({mileage_data['run_count_7d']} 趟) | 近28日週均 {mileage_data['run_km_28d_weekly_avg']:.2f} km",
+        "-" * 30,
+    ]
+
+
 def run_main_task():
     # 1. 初始化 AI 客戶端與模型
     ai_client = get_genai_client()
@@ -83,9 +95,12 @@ def run_main_task():
             return
 
         # 3. 取得長週期活動 (28天) 與今日生理指標 (優雅降級)
+        local_now = get_local_now()
         extended_activities = fetch_extended_activities(client_garmin, count=35)
-        acwr_data = calculate_acwr(extended_activities if extended_activities else activities)
-        print(f"📈 ACWR 負荷比計算: {acwr_data['acwr']} ({acwr_data['status_desc']}) | 急性: {acwr_data['acute_load']} | 慢性: {acwr_data['chronic_load']}")
+        long_window_acts = extended_activities if extended_activities else activities
+        acwr_data = calculate_acwr(long_window_acts, reference_now=local_now)
+        mileage_data = calculate_rolling_mileage(long_window_acts, reference_now=local_now)
+        print(f"📈 ACWR 負荷比計算: {acwr_data['acwr']} ({acwr_data['status_desc']}) | 急性: {acwr_data['acute_load']} | 慢性: {acwr_data['chronic_load']} | 7日跑量: {mileage_data['run_km_7d']:.2f}km")
 
         # 計算丹尼爾 VDOT 跑力與五大訓練靶心配速
         vdot_data = calculate_vdot_paces(RUNNER_PB)
@@ -117,7 +132,6 @@ def run_main_task():
             print("ℹ️ 近期三個月內未排定目標賽事。")
 
         # 5. 計算本地時間基準 (今日報告日 vs 昨日分析標的日) 並取得今日時段氣象預報
-        local_now = get_local_now()
         today_date = local_now.date()
         yesterday_date = today_date - datetime.timedelta(days=1)
         weekday_names = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
@@ -179,10 +193,7 @@ def run_main_task():
                 report.append(today_forecast_str)
                 report.append("-" * 30)
 
-            report.append("📈 【ACWR 急性與慢性負荷監控 (截至昨日，近28日)】")
-            report.append(f"  - ACWR 比值: {acwr_data['acwr']} ({acwr_data['status_desc']})")
-            report.append(f"  - 急性負荷 (近7日): {acwr_data['acute_load']} | 慢性負荷 (28日週均): {acwr_data['chronic_load']}")
-            report.append("-" * 30)
+            report.extend(_format_acwr_lines(acwr_data, mileage_data))
             
             report.append(f"📊 【近期累積運動統計 (截至昨日，近 {stats['total_activities']} 筆)】")
             report.append(f"  - 累積總跑量: {stats['total_run_km']:.2f} km")
@@ -250,10 +261,7 @@ def run_main_task():
             report.append(today_forecast_str)
             report.append("-" * 30)
 
-        report.append("📈 【ACWR 急性與慢性負荷監控 (截至昨日，近28日)】")
-        report.append(f"  - ACWR 比值: {acwr_data['acwr']} ({acwr_data['status_desc']})")
-        report.append(f"  - 急性負荷 (近7日): {acwr_data['acute_load']} | 慢性負荷 (28日週均): {acwr_data['chronic_load']}")
-        report.append("-" * 30)
+        report.extend(_format_acwr_lines(acwr_data, mileage_data))
 
         # 5. 近期訓練脈絡 (截至昨日之歷程簡要列表) 與昨日賽事判定
         is_yesterday_race, yesterday_race_note = format_yesterday_race_context(primary_act, yesterday_races)

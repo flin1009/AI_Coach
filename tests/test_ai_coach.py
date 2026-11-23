@@ -160,6 +160,27 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(res["chronic_load"], 105)  # (120 + 300) / 4 = 105
         self.assertEqual(res["status_zone"], "optimal")
 
+    def test_calculate_rolling_mileage_and_laps_distance_formatting(self):
+        fake_now = datetime.datetime(2026, 11, 16, 4, 0, 0)
+        activities = [
+            {"activityId": 99, "startTimeLocal": "2026-11-16 01:00:00", "activityType": {"typeKey": "running"}, "distance": 50000},
+            {"activityId": 1, "startTimeLocal": "2026-11-14 18:00:00", "activityType": {"typeKey": "running"}, "distance": 10000},
+            {"activityId": 1, "startTimeLocal": "2026-11-14 18:00:00", "activityType": {"typeKey": "running"}, "distance": 10000},
+            {"activityId": 2, "startTimeLocal": "2026-11-11 18:00:00", "activityType": {"typeKey": "walking"}, "distance": 8000},
+            {"activityId": 3, "startTimeLocal": "2026-10-25 06:00:00", "activityType": {"typeKey": "treadmill_running"}, "distance": 14000},
+        ]
+        m = utils.calculate_rolling_mileage(activities, reference_now=fake_now)
+        self.assertAlmostEqual(m["run_km_7d"], 10.0)
+        self.assertEqual(m["run_count_7d"], 1)
+        self.assertAlmostEqual(m["run_km_28d_weekly_avg"], 6.0)  # (10 + 14) / 4
+
+        laps_text = utils.format_laps_table([
+            {"lapIndex": 0, "distance": 1000, "averageSpeed": 3.33, "averageHR": 145, "elevationGain": 2, "averageRunCadence": 176, "duration": 300},
+            {"lapIndex": 1, "distance": 195, "averageSpeed": 3.50, "averageHR": 160, "elevationGain": 0, "averageRunCadence": 182, "duration": 56},
+        ])
+        self.assertIn("L01: 1.00km |", laps_text)
+        self.assertIn("L02: 195m |", laps_text)
+
     def test_calculate_vdot_paces(self):
         res = utils.calculate_vdot_paces("3:45")
         self.assertGreater(res["vdot"], 38.0)
@@ -180,6 +201,30 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(res["is_steady_state"])
         self.assertAlmostEqual(res["split_lap_x"], 4.5)
         self.assertGreater(res["decoupling_pct"], 0)
+
+        formatted_steady = utils.format_aerobic_decoupling(res)
+        self.assertIn("前半程 vs 後半程配速: 5:30 → 5:31", formatted_steady)
+        self.assertIn("Positive Split", formatted_steady)
+
+        even_laps = [
+            {"distance": 1000, "duration": 330, "averageHR": 140} for _ in range(4)
+        ] + [
+            {"distance": 1000, "duration": 330, "averageHR": 145} for _ in range(4)
+        ]
+        formatted_even = utils.format_aerobic_decoupling(utils.calculate_aerobic_decoupling(even_laps))
+        self.assertIn("5:30 → 5:30", formatted_even)
+        self.assertIn("Even Split", formatted_even)
+
+        # 後半程加速 (Negative Split) + 功率欄位存在時仍須正確顯示配速變化
+        neg_split_laps = [
+            {"distance": 1000, "duration": 320, "averageHR": 145, "avgPower": 260} for _ in range(3)
+        ] + [
+            {"distance": 1000, "duration": 300, "averageHR": 152, "avgPower": 280} for _ in range(3)
+        ]
+        neg_res = utils.calculate_aerobic_decoupling(neg_split_laps)
+        formatted_neg = utils.format_aerobic_decoupling(neg_res)
+        self.assertIn("5:20 → 5:00", formatted_neg)
+        self.assertIn("Negative Split", formatted_neg)
 
         interval_laps = [
             {"distance": 1000, "duration": 220, "averageHR": 172},  # 4.55 m/s
@@ -603,6 +648,9 @@ class TestMainFlow(unittest.TestCase):
         self.assertIn("昨日活動深度數據 (2026-11-15 (週日))", msg)
         self.assertIn("Taipei", msg)
         self.assertIn("昨日其他紀錄", msg)
+        self.assertIn("跑量統計: 近7日 10.00 km (1 趟) | 近28日週均 2.50 km", msg)
+        self.assertIn("L01: 1.00km |", msg)
+        self.assertIn("前半程 vs 後半程配速:", msg)
         self.assertIn("今日訓練時段氣象預報 (2026-11-16 (週一))", msg)
         self.assertIn("風速 10km/h", msg)
         self.assertIn("教練建議 → 執行 Zone 2", msg)
