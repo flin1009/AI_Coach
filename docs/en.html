@@ -300,19 +300,20 @@
                     <div class="text-sky-300/90">🏆 [Upcoming Races (Next 90 Days Countdown)]</div>
                     <div class="pl-2 text-slate-300">🚩 2026-10-25 (32 Days to go (~4 Weeks)) EVA Air Marathon | Half Marathon (21.1 km)</div>
                     <div class="pt-1 text-slate-400">🩺 [Autonomic Recovery & Readiness]: HRV 58ms (Balanced) | RHR 48 bpm | Body Battery 86</div>
-                    <div class="text-emerald-300/90 font-medium">📈 [ACWR Workload Ratio]: 1.14 (Sweet Spot - Optimal Adaptation Zone)</div>
+                    <div class="text-emerald-300/90 font-medium">📈 [ACWR Workload Ratio]: 1.14 (Sweet Spot - Optimal Adaptation Zone)<br/><span class="text-slate-400 font-normal">• Mileage: 7d 42.60 km (4 runs) | 28d Weekly Avg 38.50 km</span></div>
                     <div class="border-t border-slate-700/60 pt-2 text-slate-300">
-                      🏃 [Latest Activity]: 2026-09-23 Evening Aerobic Endurance Run<br/>
+                      🏃 [Yesterday's Activity Telemetry]: 2026-09-23 Evening Aerobic Endurance Run<br/>
                       • Distance: 10.02 km | Total Time: 58:32 | Avg Pace: 5:50 /km<br/>
                       • Avg HR: 134 bpm (Zone 2: 86%) | Running Power: 242 W<br/>
                       • Cadence: 178 spm | Stride: 0.96 m | Vert Osc: 7.8 cm | GCT: 228 ms<br/>
+                      • 💓 Decoupling: +1.4% (5:52 → 5:48, Negative Split -4s/km)<br/>
                       • 🌤️ Weather: 24.2°C | Humidity 72% | Feels Like 25.5°C
                     </div>
                     <div class="bg-[#101722] p-2.5 rounded-lg border border-slate-800 text-[10px] sm:text-[11px] leading-relaxed text-slate-400 font-mono">
-                      [Lap Splits (Pace | HR | Elev | Cadence | Time)]<br/>
-                      &nbsp;&nbsp;- L01: 6:02 | 126bpm | 0m | 174spm | 6:02<br/>
-                      &nbsp;&nbsp;- L02: 5:54 | 131bpm | 1m | 176spm | 5:54<br/>
-                      &nbsp;&nbsp;- L03: 5:50 | 133bpm | 0m | 178spm | 5:50<br/>
+                      [Lap Splits (Dist | Pace | HR | Elev | Cadence | Time)]<br/>
+                      &nbsp;&nbsp;- L01: 1.00km | 6:02 | 126bpm | 0m | 174spm | 6:02<br/>
+                      &nbsp;&nbsp;- L02: 1.00km | 5:54 | 131bpm | 1m | 176spm | 5:54<br/>
+                      &nbsp;&nbsp;- L03: 1.00km | 5:50 | 133bpm | 0m | 178spm | 5:50<br/>
                       &nbsp;&nbsp;... (10 laps structured breakdown)
                     </div>
                   </div>
@@ -466,9 +467,9 @@
           <div class="w-10 h-10 rounded-lg bg-slate-800 text-indigo-400 flex items-center justify-center text-lg mb-3 border border-slate-700/60">
             <i class="fa-solid fa-heart-pulse"></i>
           </div>
-          <h3 class="text-base font-semibold text-slate-100 mb-1.5">Aerobic Decoupling (Decoupling %)</h3>
+          <h3 class="text-base font-semibold text-slate-100 mb-1.5">Aerobic Decoupling & Split Pacing</h3>
           <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
-            Joe Friel's Efficiency Factor (EF) model split into first & second halves, diagnosing cardiac drift and aerobic base solidity.
+            Joe Friel's Efficiency Factor (EF) model paired with half-by-half pace delta (Negative / Positive Split) to diagnose cardiac drift and pacing execution.
           </p>
         </div>
 
@@ -477,9 +478,9 @@
           <div class="w-10 h-10 rounded-lg bg-slate-800 text-amber-400 flex items-center justify-center text-lg mb-3 border border-slate-700/60">
             <i class="fa-solid fa-flag-checkered"></i>
           </div>
-          <h3 class="text-base font-semibold text-slate-100 mb-1.5">Race Countdown & Daily Menu</h3>
+          <h3 class="text-base font-semibold text-slate-100 mb-1.5">Race Debrief & Post-Race Recovery</h3>
           <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
-            Auto-syncs Garmin calendar races (next 90 days, de-duplicated), periodizes training phases, and dynamically adapts between weekday and weekend time slots.
+            Auto-syncs Garmin calendar races (next 90 days + past 7 days across month boundaries), triggers Race Day debriefs on D+1, and protects post-race recovery all week.
           </p>
         </div>
 
@@ -488,9 +489,9 @@
           <div class="w-10 h-10 rounded-lg bg-slate-800 text-sky-400 flex items-center justify-center text-lg mb-3 border border-slate-700/60">
             <i class="fa-solid fa-brain"></i>
           </div>
-          <h3 class="text-base font-semibold text-slate-100 mb-1.5">Gemini Multi-Model Failover</h3>
+          <h3 class="text-base font-semibold text-slate-100 mb-1.5">Gemini Cross-Gen Failover</h3>
           <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
-            Dynamically scans Gemini 2.5 / 2.0 Flash models with automated millisecond failover upon peak 503 UNAVAILABLE errors. 100% push reliability.
+            Dynamically scans cross-generation Flash / Hydrogen models with automatic failover on 503/429 errors and plain-text cleanup for crisp Telegram formatting.
           </p>
         </div>
 
@@ -534,7 +535,7 @@
           </div>
           <h3 class="text-base font-semibold text-slate-100 mb-1.5">3 Independent HD Charts</h3>
           <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
-            No crammed multi-panel images! Matplotlib outputs standalone high-res images for pace/HR trend, ACWR gauge, and HR zones donut.
+            Matplotlib outputs standalone high-res images for pace/HR trend, ACWR gauge, and HR zones donut—with adaptive X-axis ticks and outlier clamping for 42+ marathon laps.
           </p>
         </div>
 
@@ -892,12 +893,12 @@
             </div>
             <h3 class="text-base font-semibold text-slate-100 mb-1.5">Enable GitHub Actions</h3>
             <p class="text-slate-400 text-xs sm:text-sm leading-relaxed mb-4">
-              Click the <b>Actions</b> tab in your repo and enable workflows. It will run automatically every morning, or you can trigger <b>Run workflow</b> manually anytime!
+              Click the <b>Actions</b> tab in your repo and enable workflows. It runs automatically at ~03:55–04:00 AM UTC+8 (UTC 19:55), or you can trigger <b>Run workflow</b> manually anytime!
             </p>
           </div>
           <div class="p-2.5 rounded-lg bg-[#0f1520] border border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
             <i class="fa-solid fa-broom text-amber-400"></i>
-            <span>Includes <b>Cleanup</b> workflow to clear run history with one click!</span>
+            <span>Includes <b>Unit Tests CI</b> & one-click <b>Cleanup</b> workflow!</span>
           </div>
         </div>
 
@@ -910,8 +911,8 @@
             <i class="fa-solid fa-sliders"></i>
           </div>
           <div>
-            <h4 class="text-xs sm:text-sm font-semibold text-slate-200">Optional: Personalized Runner Settings (GitHub Secrets)</h4>
-            <p class="text-xs text-slate-400">Customize <code class="text-slate-300">RUNNER_NAME</code>, <code class="text-slate-300">RUNNER_PB</code> (e.g. 3:45), <code class="text-slate-300">RUNNER_BIRTH_YEAR</code>, and <code class="text-slate-300">ZONE2_MAX_HR</code> for custom VDOT target zones.</p>
+            <h4 class="text-xs sm:text-sm font-semibold text-slate-200">Optional: OAuth Token & Runner Settings (GitHub Secrets)</h4>
+            <p class="text-xs text-slate-400">Optionally add <code class="text-slate-300">GARMINTOKENS</code> (token-first auth with credential fallback) and customize <code class="text-slate-300">RUNNER_NAME</code>, <code class="text-slate-300">RUNNER_PB</code>, <code class="text-slate-300">RUNNER_BIRTH_YEAR</code>, and <code class="text-slate-300">ZONE2_MAX_HR</code>.</p>
           </div>
         </div>
         <a href="https://github.com/flin1009/AI_Coach#secrets-list" target="_blank" rel="noopener noreferrer" 
@@ -965,7 +966,7 @@
             <i class="fa-solid fa-chevron-down text-xs text-slate-500 group-open:rotate-180 transition-transform"></i>
           </summary>
           <p class="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed pl-6">
-            Extremely secure. All credentials are stored inside your private GitHub Repository Secrets, encrypted via asymmetric public-key cryptography on GitHub's secure infrastructure. The code is 100% open-source Python, connecting directly from the GitHub runner to Garmin Connect with zero third-party proxies.
+            Extremely secure. All credentials and optional <code class="text-sky-300">GARMINTOKENS</code> are stored inside your private GitHub Repository Secrets, encrypted via asymmetric public-key cryptography on GitHub's secure infrastructure. The code is 100% open-source Python, connecting directly from the GitHub runner to Garmin Connect with zero third-party proxies.
           </p>
         </details>
 
@@ -974,12 +975,12 @@
           <summary class="font-semibold text-slate-200 cursor-pointer list-none flex items-center justify-between text-sm sm:text-base">
             <span class="flex items-center gap-2.5">
               <i class="fa-solid fa-calendar-day text-indigo-400 text-sm"></i>
-              <span>Will I still receive a report if I rest today?</span>
+              <span>Will I still receive a report if I rested yesterday?</span>
             </span>
             <i class="fa-solid fa-chevron-down text-xs text-slate-500 group-open:rotate-180 transition-transform"></i>
           </summary>
           <p class="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed pl-6">
-            Yes! The system features an intelligent 26-hour recency detection window. If no new workout has been logged, it automatically switches to the <b>Rest Day & Supercompensation Report</b>, analyzing your rolling 7-workout cumulative volume and acute workload to prescribe foam rolling, hydration recovery, and a preview of your next session.
+            Yes! Each morning the system analyzes yesterday's (D-1 UTC+8 calendar day) records. If no activity was logged yesterday, it automatically switches to the <b>Yesterday Rest &amp; Today Recovery Report</b>, combining 7d/28d rolling mileage and any races completed within the past 7 days to prescribe recovery guidance without re-analyzing stale workouts.
           </p>
         </details>
 

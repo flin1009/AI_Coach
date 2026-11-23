@@ -302,19 +302,20 @@
                     <div class="text-sky-300/90">🏆 【未來目標賽事 (近三個月倒數)】</div>
                     <div class="pl-2 text-slate-300">🚩 2026-10-25 (倒數 32 天 (約 4 週)) 長榮航空城市觀光半程馬拉松 | 21.1km</div>
                     <div class="pt-1 text-slate-400">🩺 【夜間自律神經與準備度】：HRV 58ms (良好) | 靜止心率 48bpm | 身體電量 86</div>
-                    <div class="text-emerald-300/90 font-medium">📈 【ACWR 體能負荷比】：1.14 (Sweet Spot 最佳適應區間)</div>
+                    <div class="text-emerald-300/90 font-medium">📈 【ACWR 體能負荷比】：1.14 (Sweet Spot 最佳適應區間)<br/><span class="text-slate-400 font-normal">• 跑量統計：近7日 42.60 km (4 趟) | 近28日週均 38.50 km</span></div>
                     <div class="border-t border-slate-700/60 pt-2 text-slate-300">
-                      🏃 【最新活動】：2026-09-23 晚間有氧耐力跑<br/>
+                      🏃 【昨日活動深度數據】：2026-09-23 晚間有氧耐力跑<br/>
                       • 距離：10.02 km | 總耗時：58:32 | 平均配速：5:50 /km<br/>
                       • 平均心率：134 bpm (Z2 佔比 86%) | 跑步功率：242 W<br/>
                       • 步頻：178 spm | 步幅：0.96 m | 垂直振幅：7.8 cm | 觸地時間：228 ms<br/>
+                      • 💓 解耦率：+1.4% (前半 5:52 → 後半 5:48，Negative Split -4s/km)<br/>
                       • 🌤️ 氣象：24.2°C | 濕度 72% | 體感 25.5°C
                     </div>
                     <div class="bg-[#101722] p-2.5 rounded-lg border border-slate-800 text-[10px] sm:text-[11px] leading-relaxed text-slate-400 font-mono">
-                      [分圈細節 (配速 | 心率 | 爬升 | 步頻 | 時間)]<br/>
-                      &nbsp;&nbsp;- L01: 6:02 | 126bpm | 0m | 174spm | 6:02<br/>
-                      &nbsp;&nbsp;- L02: 5:54 | 131bpm | 1m | 176spm | 5:54<br/>
-                      &nbsp;&nbsp;- L03: 5:50 | 133bpm | 0m | 178spm | 5:50<br/>
+                      [分圈細節 (距離 | 配速 | 心率 | 爬升 | 步頻 | 時間)]<br/>
+                      &nbsp;&nbsp;- L01: 1.00km | 6:02 | 126bpm | 0m | 174spm | 6:02<br/>
+                      &nbsp;&nbsp;- L02: 1.00km | 5:54 | 131bpm | 1m | 176spm | 5:54<br/>
+                      &nbsp;&nbsp;- L03: 1.00km | 5:50 | 133bpm | 0m | 178spm | 5:50<br/>
                       &nbsp;&nbsp;... (共 10 圈條理列出)
                     </div>
                   </div>
@@ -469,9 +470,9 @@
           <div class="w-10 h-10 rounded-lg bg-slate-800 text-indigo-400 flex items-center justify-center text-lg mb-3 border border-slate-700/60">
             <i class="fa-solid fa-heart-pulse"></i>
           </div>
-          <h3 class="text-base font-semibold text-slate-100 mb-1.5">前後半程有氧解耦率</h3>
+          <h3 class="text-base font-semibold text-slate-100 mb-1.5">前後半程有氧解耦與配速分配</h3>
           <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
-            引進 Joe Friel 效率因子 (EF) 模型，精準將運動切分前後半程，計算心率漂移百分比，四段科學等級檢驗有氧耐力底層。
+            引進 Joe Friel 效率因子 (EF) 模型，同步輸出前半程 vs 後半程配速差 (Negative/Positive Split) 與心率漂移百分比，四段科學等級檢驗有氧底層。
           </p>
         </div>
 
@@ -480,9 +481,9 @@
           <div class="w-10 h-10 rounded-lg bg-slate-800 text-amber-400 flex items-center justify-center text-lg mb-3 border border-slate-700/60">
             <i class="fa-solid fa-flag-checkered"></i>
           </div>
-          <h3 class="text-base font-semibold text-slate-100 mb-1.5">目標賽事倒數與每日菜單</h3>
+          <h3 class="text-base font-semibold text-slate-100 mb-1.5">目標賽事復盤與賽後恢復週期</h3>
           <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
-            自動調閱 Garmin 行事曆近三個月目標賽事（智慧去重），判讀基礎期、專項期或減量期 (Taper)，全天候自適應平日（晨跑/夜跑雙時段二選一）與週末（下午/早上/晚間）動態微調。
+            自動調閱 Garmin 行事曆未來 90 天與近 7 日剛完賽賽事（支援跨月去重），昨日賽事直接走正式賽事復盤、賽後 7 日內保護漸進恢復，並自適應平日與週末時段。
           </p>
         </div>
 
@@ -491,9 +492,9 @@
           <div class="w-10 h-10 rounded-lg bg-slate-800 text-sky-400 flex items-center justify-center text-lg mb-3 border border-slate-700/60">
             <i class="fa-solid fa-brain"></i>
           </div>
-          <h3 class="text-base font-semibold text-slate-100 mb-1.5">Gemini 多模型自動降級備援</h3>
+          <h3 class="text-base font-semibold text-slate-100 mb-1.5">Gemini 跨世代多模型備援</h3>
           <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
-            動態掃描最新 Gemini 2.5 / 2.0 Flash 模型陣列，若遭遇尖峰 503 UNAVAILABLE 錯誤，毫秒級自動容錯降級重試，推播 100% 不中斷。
+            動態掃描最新跨世代 Flash / Hydrogen 模型陣列並內建純文字淨化，遭遇尖峰 503 或 429 錯誤時自動階梯降級重試，推播穩定不中斷。
           </p>
         </div>
 
@@ -537,7 +538,7 @@
           </div>
           <h3 class="text-base font-semibold text-slate-100 mb-1.5">3 大獨立高解析度圖表</h3>
           <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
-            告別多圖擠在一起的狹窄排版！Matplotlib 獨立產出走勢圖、ACWR 量規與心率甜甜圈，透過 Telegram 逐張推播滿版大圖。
+            Matplotlib 獨立產出走勢圖、ACWR 量規與心率甜甜圈並逐張推播滿版大圖；面對全馬 42+ 圈亦自動優化 X 軸刻度與尾圈異常配速裁剪。
           </p>
         </div>
 
@@ -895,12 +896,12 @@
             </div>
             <h3 class="text-base font-semibold text-slate-100 mb-1.5">啟用 Actions 自動排程</h3>
             <p class="text-slate-400 text-xs sm:text-sm leading-relaxed mb-4">
-              點擊倉庫上方的 <b>Actions</b> 分頁，啟用工作流。每天早上 06:00 (UTC 22:00) 即會自動執行並推播！您也可以隨時點選 <b>Run workflow</b> 立即手動測試。
+              點擊倉庫上方的 <b>Actions</b> 分頁，啟用工作流。每天清晨約 03:55 ~ 04:00 (UTC 19:55) 即會自動執行並推播！您也可以隨時點選 <b>Run workflow</b> 立即手動測試。
             </p>
           </div>
           <div class="p-2.5 rounded-lg bg-[#0f1520] border border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
             <i class="fa-solid fa-broom text-amber-400"></i>
-            <span>內建 <b>Cleanup</b> 工作流，可一鍵清空歷史紀錄！</span>
+            <span>內建 <b>Unit Tests CI</b> 驗證與 <b>Cleanup</b> 清空歷史紀錄！</span>
           </div>
         </div>
 
@@ -913,8 +914,8 @@
             <i class="fa-solid fa-sliders"></i>
           </div>
           <div>
-            <h4 class="text-xs sm:text-sm font-semibold text-slate-200">選填：個人化跑者設定 (GitHub Secrets)</h4>
-            <p class="text-xs text-slate-400">可自訂 <code class="text-slate-300">RUNNER_NAME</code>、<code class="text-slate-300">RUNNER_PB</code> (如 3:45)、<code class="text-slate-300">RUNNER_BIRTH_YEAR</code> 與 <code class="text-slate-300">ZONE2_MAX_HR</code>，打造專屬您的 AI 課表。</p>
+            <h4 class="text-xs sm:text-sm font-semibold text-slate-200">選填：OAuth Token 與個人化跑者設定 (GitHub Secrets)</h4>
+            <p class="text-xs text-slate-400">支援選填 <code class="text-slate-300">GARMINTOKENS</code>（OAuth Token 優先登入／自動備援帳密），以及自訂 <code class="text-slate-300">RUNNER_NAME</code>、<code class="text-slate-300">RUNNER_PB</code> (如 3:45)、<code class="text-slate-300">RUNNER_BIRTH_YEAR</code> 與 <code class="text-slate-300">ZONE2_MAX_HR</code>。</p>
           </div>
         </div>
         <a href="https://github.com/flin1009/AI_Coach#secrets-設定清單" target="_blank" rel="noopener noreferrer" 
@@ -968,7 +969,7 @@
             <i class="fa-solid fa-chevron-down text-xs text-slate-500 group-open:rotate-180 transition-transform"></i>
           </summary>
           <p class="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed pl-6">
-            非常安全。所有帳號密碼都是儲存在您個人私有的 GitHub Repository Secrets 中，經由 GitHub 伺服器進行非對稱非對稱加密（Asymmetric Encryption）。程式碼為 100% 開源純 Python，直接從 GitHub 虛擬機連線至 Garmin 官方，絕不經過任何第三方中繼伺服器。
+            非常安全。所有帳號密碼與選填 <code class="text-sky-300">GARMINTOKENS</code> 都是儲存在您個人私有的 GitHub Repository Secrets 中，經由 GitHub 伺服器進行非對稱加密（Asymmetric Encryption）。程式碼為 100% 開源純 Python，直接從 GitHub 虛擬機連線至 Garmin 官方，絕不經過任何第三方中繼伺服器。
           </p>
         </details>
 
@@ -977,12 +978,12 @@
           <summary class="font-semibold text-slate-200 cursor-pointer list-none flex items-center justify-between text-sm sm:text-base">
             <span class="flex items-center gap-2.5">
               <i class="fa-solid fa-calendar-day text-indigo-400 text-sm"></i>
-              <span>如果我今天休息沒有跑步，系統還會發送日報嗎？</span>
+              <span>如果我昨天休息沒有跑步，系統還會發送日報嗎？</span>
             </span>
             <i class="fa-solid fa-chevron-down text-xs text-slate-500 group-open:rotate-180 transition-transform"></i>
           </summary>
           <p class="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed pl-6">
-            會的！系統內建 26 小時判定機制。若最近沒有新運動，系統會自動轉發「<b>今日休整與超補償日報</b>」，統計您近 7 筆的累積跑量與負荷，由 AI 教練提供滾筒伸展、電解質修復處方與下次重啟課表建議，絕不重複發送舊活動，維持每日清晨開立當日指引的儀式感。
+            會的！系統每日清晨嚴格鎖定「昨日 (UTC+8 日曆日)」進行分析。若昨日沒有運動紀錄，系統會自動切換為「<b>昨日休整與今日恢復日報</b>」，結合近 7 日 / 28 日滾動跑量與近 7 日完賽賽事脈絡，由 AI 教練提供筋膜伸展、電解質修復處方與賽後/休整日重啟課表建議，絕不重複分析舊活動或誤抓當日晨跑。
           </p>
         </details>
 

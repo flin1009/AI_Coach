@@ -47,14 +47,14 @@ flowchart TB
 
         subgraph G_CORE["⚙️ Core Orchestrator"]
             direction TB
-            MAIN["<b>main.py</b><br/>Execution Engine<br/>26h Workout/Rest Recency"]
+            MAIN["<b>main.py</b><br/>Execution Engine<br/>Yesterday (D-1) / Rest Day"]
             CONF["<b>config.py</b><br/>Secrets & Personalization"]
-            UTIL["<b>utils.py</b><br/>ACWR / VDOT / Countdown"]
+            UTIL["<b>utils.py</b><br/>ACWR / Mileage / VDOT / Races"]
         end
 
         subgraph G_DATA["📡 Data Ingestion Layer"]
             direction TB
-            GARMIN["<b>garmin_service.py</b><br/>Garmin Connect Login<br/>Activities, Splits, HRV, <b>Upcoming Races</b>"]
+            GARMIN["<b>garmin_service.py</b><br/>Token / Credential Login<br/>Splits, HRV, <b>Recent & Upcoming Races</b>"]
             WEATHER["<b>weather_service.py</b><br/>Open-Meteo Weather API<br/>On-the-spot Temp & Humidity"]
         end
     end
@@ -142,7 +142,8 @@ flowchart TB
 * **Advanced Running Dynamics**: Full breakdown of **Running Power (W)**, **Cadence (spm)**, **Stride Length (m)**, **Vertical Oscillation (cm)**, **Stride Ratio (%)**, and **Ground Contact Time (ms)** to evaluate running economy and landing stress.
 * **Heart Rate Zones (Z1~Z5)**: Automatic time-in-zone and percentage calculations to examine metabolic stimulus.
 * **Physiological Load**: Aerobic & Anaerobic Training Effect (TE), Activity Training Load, and VO2 Max.
-* **Detailed Lap Breakdown**: Kilometers-by-kilometer telemetry logging pace, heart rate, cadence, and elevation gain.
+* **Detailed Lap Breakdown**: Logs **per-lap distance** (`1.00km` / `400m` / `195m`), pace, heart rate, cadence, and elevation gain so interval splits and marathon finish laps are crystal clear.
+* **Dual-Window Rolling Mileage**: Displays cumulative **7-day running distance (and run count)** alongside the **28-day weekly average** inside the ACWR block.
 
 ### 2. 🌤️ Historical Micro-Weather Ingestion (Open-Meteo)
 * Automatically queries Open-Meteo hourly historical archives using the activity's **exact starting coordinates** and **start time**.
@@ -150,14 +151,15 @@ flowchart TB
 * For indoor runs (without GPS track), smoothly falls back to the runner's default station coordinates.
 
 ### 3. 🤖 Adaptive Workout Detection & Gemini 503 Failover
-* **Adaptive Workout Classification**: AI objectively identifies the true nature of the workout from pace, heart rate, power, and time-in-zone distributions:
+* **Adaptive Workout Classification**: AI objectively identifies the true nature of the workout from pace, heart rate, power, time-in-zone distributions, and race tags:
+  * 🏁 **Official Race (Race Day)**: Links yesterday's scheduled Garmin calendar race or `race` event flag for authentic post-race debriefs (instead of misclassifying as a simulation run)
   * 🟢 Active Recovery Run
   * 🔵 Zone 2 Aerobic Base Endurance
   * 🟡 Marathon Pace (MP) Run
   * 🟠 Lactate Threshold / Tempo Run
   * 🔴 High-Intensity Intervals / Repetitions
-* **7-Activity Micro-Cycle Fatigue Monitoring**: Examines cumulative weekly mileage and cross-training context (cycling, strength training, swimming) to evaluate Acute Training Load and prescribe the next session.
-* **Multi-Model Dynamic Fallover**: Scans available Google Gemini Flash models (e.g. Gemini 2.5 Flash, 2.0 Flash) ordered by generation. Automatically fails over to backup models within milliseconds upon 503 UNAVAILABLE peak load errors.
+* **28-Day Activity Pool & Micro-Cycle Context**: Selects yesterday's primary workout across the full 28-day pool (never missing a run on multi-activity days) and tracks 7d/28d mileage and cross-training context.
+* **Cross-Generation Dynamic Failover**: Scans available Flash / Hydrogen generations ordered from newest to stable production models, automatically failing over on 503 UNAVAILABLE, 429 quota, or retired-model errors.
 
 ### 4. 📈 ACWR Workload Ratio & Injury Prevention (Acute:Chronic Workload Ratio)
 * Automatically backtracks 28 days of training history to compute the ratio between Acute Load (last 7 days) and Chronic Fitness (rolling 28-day weekly average).
@@ -189,10 +191,12 @@ $$
   * 🔵 **3.0% ~ 5.0% (Well-Trained)**: Excellent heart-rate-to-pace equilibrium for marathon endurance.
   * 🟡 **5.1% ~ 8.0% (Moderate Drift)**: Second-half drift detected; flags heat dissipation or mild dehydration.
   * 🔴 **> 8.0% (High Drift)**: Cardiovascular overload or thermal stress; AI coach advises pace reduction.
-* **Telemetry Visualization**: Automatically plots purple halfway split lines and decoupling badges on dual-axis trend charts.
+* **First vs. Second Half Pace Split**: Outputs half-by-half average pace and exact second delta (**Negative Split**, **Positive Split**, or **Even Split**).
+* **Telemetry Visualization**: Automatically plots purple halfway split lines and decoupling badges on dual-axis trend charts, with adaptive X-axis ticks for 42+ marathon laps and IQR pace clamping for outlier cooldown/tail laps.
 
-### 7. 🏆 Upcoming Race Countdown & Daily Adaptive Workout Menu
-* **Garmin Calendar Race Ingestion**: Automatically retrieves confirmed goal races within the next 90 days from Garmin Connect.
+### 7. 🏆 Race Countdown, D-1 Race Debrief & Post-Race Recovery
+* **Garmin Calendar Race Ingestion**: Automatically retrieves confirmed goal races within the next 90 days while also looking back 7 days (including across month boundaries).
+* **D-1 Race Attribution & 7-Day Recovery Guard**: On D+1, links yesterday's race name and distance directly into the AI prompt; on D+2 through D+7, carries recent race context into both active and rest-day reports so the coach prioritizes progressive post-race recovery.
 * **Smart Calendar De-duplication**: Filters overlapping monthly calendar API grids by unique `item.id`, eliminating duplicates.
 * **Race Countdown Cards**: Displays badges like `🚩 2026-10-25 (32 Days to go (~4 Weeks)) EVA Air Marathon | Half Marathon (21.1 km)`.
 * **Periodization & Adaptive Menu**: Identifies current training phase (Base, Specific Prep, Peak, Taper) and formulates a specific daily menu.
@@ -211,7 +215,7 @@ $$
   * **Character Limit Safety**: Automatic segmentation if a section exceeds Telegram's 4,000-character limit.
 * **3 Standalone Full-Resolution Charts**: Pushes high-definition charts (**ACWR Gauge**, **HR Zones Donut**, and **Pace & HR Dual-Axis Trend**) individually via Telegram `sendPhoto` for crystal-clear readability on mobile devices.
 * **Clean Monospace Lap Tables**: Cleanly formatted lap splits with elevation gain and cadence.
-* **LaTeX Cleanup**: Filters raw LaTeX mathematical syntax (`$\rightarrow$`) into standard arrows (`→`).
+* **LaTeX & Markdown Cleanup**: Filters raw LaTeX syntax (`$\rightarrow$`) into standard arrows (`→`) and strips exposed Markdown markers (`**bold**`, `###`, `* ` bullets) for clean plain-text readability on Telegram.
 
 ---
 
@@ -221,6 +225,7 @@ $$
 AI_Coach/
 ├── .github/
 │   └── workflows/
+│       ├── ci.yml               # Automated unit test CI on push / PR
 │       ├── daily_task.yml       # GitHub Actions daily schedule & CI/CD environment
 │       ├── test_calendar.yml    # Manual workflow for testing race calendar integration
 │       └── cleanup_runs.yml     # One-click workflow to delete all Actions run history
@@ -228,6 +233,9 @@ AI_Coach/
 │   ├── assets/                  # High-resolution architecture diagram & telemetry charts
 │   ├── index.html               # Traditional Chinese website (Tailwind CSS + live calculators)
 │   └── en.html                  # English website (Tailwind CSS + live running lab)
+├── tests/
+│   └── test_ai_coach.py         # Offline unit test suite (mocked Garmin/AI/Weather/Charts)
+├── requirements.txt             # Pinned compatible Python dependencies
 ├── config.py                    # Manages Secrets environment variables & runner settings
 ├── utils.py                     # VDOT math, decoupling %, race countdown, ACWR & formatting
 ├── weather_service.py           # Open-Meteo API historical weather ingestion module
@@ -292,10 +300,13 @@ Used to push scheduled reports and telemetry charts directly to your phone.
 
 ---
 
-### 3. ⌚ Garmin Connect Account (`GARMIN_EMAIL`, `GARMIN_PWD`)
+### 3. ⌚ Garmin Connect Account (`GARMIN_EMAIL`, `GARMIN_PWD`, optional `GARMINTOKENS`)
 * Connects using the open-source library [`python-garminconnect`](https://github.com/cyberjunky/python-garminconnect).
 * **No Enterprise API Needed**: Simply provide the email and password you use to log into the mobile **Garmin Connect App**.
-* **Two-Factor Authentication (2FA) Note**: If 2FA is active on your Garmin account, automated remote logins may be blocked. Ensure standard login access is permitted.
+* **Two-Factor Authentication (2FA) & OAuth Token Fallback (`GARMINTOKENS`)**: If 2FA is enabled or you want token-first cloud login, export an OAuth token JSON locally and store it in the optional `GARMINTOKENS` secret (if omitted or expired, the client falls back to `GARMIN_EMAIL` / `GARMIN_PWD`):
+  ```powershell
+  py -c "import getpass; from garminconnect import Garmin; e = input('Garmin Email: ').strip(); p = getpass.getpass('Garmin Password: '); g = Garmin(e, p, prompt_mfa=lambda: input('MFA Code: ').strip()); g.login(); print(); print(g.client.dumps())"
+  ```
 
 ---
 
@@ -348,6 +359,7 @@ Encrypted environment variables stored securely in your GitHub repository:
 
 | Secret Name | Description | Default | Example |
 | :--- | :--- | :---: | :--- |
+| `GARMINTOKENS` | Garmin OAuth Token (Optional, token-first) | `None` | Accepts raw Token JSON or Base64 string; falls back to credentials when unset or expired |
 | `RUNNER_NAME` | Runner's name / nickname | `Runner` | Used in report headers and AI coaching prompts |
 | `RUNNER_BIRTH_YEAR` | 4-digit birth year | `1985` | Used by AI for age and heart-rate zone estimates |
 | `RUNNER_PB` | Marathon Personal Best (PB) | `3:45` | Used for VDOT derivations (e.g. `3:30` or `4:15`) |

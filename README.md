@@ -47,14 +47,14 @@ flowchart TB
 
         subgraph G_CORE["⚙️ 核心調度中心 (Orchestrator)"]
             direction TB
-            MAIN["<b>main.py</b><br/>主流程調度引擎<br/>26h 課表/休整日判定"]
+            MAIN["<b>main.py</b><br/>主流程調度引擎<br/>昨日(D-1)分析 / 休整日判定"]
             CONF["<b>config.py</b><br/>Secrets & 跑者設定"]
-            UTIL["<b>utils.py</b><br/>ACWR / VDOT / 賽事倒數"]
+            UTIL["<b>utils.py</b><br/>ACWR / 滾動跑量 / VDOT / 賽事"]
         end
 
         subgraph G_DATA["📡 數據採集層 (Data Services)"]
             direction TB
-            GARMIN["<b>garmin_service.py</b><br/>Garmin Connect 帳密登入<br/>活動歷程、分圈、HRV、<b>目標賽事 (去重)</b>"]
+            GARMIN["<b>garmin_service.py</b><br/>Token / 帳密雙軌登入<br/>活動、分圈、HRV、<b>昨日與未來賽事</b>"]
             WEATHER["<b>weather_service.py</b><br/>Open-Meteo 氣象 API<br/>GPS 座標活動當下精準溫濕度"]
         end
     end
@@ -142,7 +142,8 @@ flowchart TB
 * **高階跑步動態 (Running Dynamics)**：全面解析 **跑步功率 (W)**、**步頻 (spm)**、**步幅 (m)**、**垂直振幅 (cm)**、**步幅比 (%)** 與 **觸地時間 (ms)**，診斷跑姿經濟性與著地負擔。
 * **心率區間分佈 (Z1~Z5)**：自動換算各區間累計時間與佔比，檢視能量系統刺激比例。
 * **生理負荷評估**：有氧/無氧訓練效果 (Training Effect, TE)、活動訓練負荷值 (Activity Training Load) 與 VO2 Max。
-* **詳細分圈明細**：逐公里記錄配速、心率、步頻、爬升高度。
+* **詳細分圈明細**：逐圈記錄 **單圈距離**（`1.00km` / `400m` / `195m`）、配速、心率、步頻與爬升高度，間歇或尾圈距離一目瞭然。
+* **雙視窗滾動跑量**：於 ACWR 區塊同步提供截至昨日的 **近 7 日累積跑量（含趟數）** 與 **近 28 日週均跑量**。
 
 ### 2. 🌤️ 歷史氣候精準還原 (Open-Meteo)
 * 系統根據活動的 **起始經緯度座標** 與 **起跑時間**，動態查詢 Open-Meteo 每小時歷史氣象數據。
@@ -150,14 +151,15 @@ flowchart TB
 * 若為室內跑步（無 GPS 軌跡），系統自動切換至預設測站座標查詢室外天候。
 
 ### 3. 🤖 自適應課表判讀與 Gemini 503 備援機制
-* **自適應課表類型辨識**：不拘泥於單一 Zone 2 判斷，AI 自動依心率、配速、功率與各區間佔比，精準識別：
+* **自適應課表類型辨識**：不拘泥於單一 Zone 2 判斷，AI 自動依心率、配速、功率、各區間佔比與賽事標記，精準識別：
+  * 🏁 **正式賽事 (Race Day)**：關聯昨日行事曆目標賽事或 `race` 事件標籤，直接進行賽後實戰復盤（不誤判為模擬跑）
   * 🟢 輕鬆恢復跑 (Recovery Run)
   * 🔵 有氧基礎耐力跑 (Zone 2 Endurance)
   * 🟡 馬拉松配速跑 (Marathon Pace, MP)
   * 🟠 乳酸閾值 / 節奏跑 (Tempo Run)
   * 🔴 高強度間歇 / 衝刺 (Interval)
-* **7 筆微週期疲勞監控**：前 6 筆活動提供一週累積總跑量、交叉訓練（自行車、重訓、游泳等）脈絡，診斷急性疲勞指數（Acute Training Load），給予次日最科學的訓練/休整處方。
-* **動態多模型降級 (Fallback Mechanism)**：啟動時自動掃描 Google 最新版 Flash 模型清單並由新至舊排序。遭遇 Google 伺服器尖峰 503 UNAVAILABLE 錯誤時，自動無縫切換備援模型重試。
+* **長週期活動池與微週期監控**：結合近 28 天活動池挑選昨日主課表（單日多筆紀錄不遺漏），並統計 7 日/28 日跑量與交叉訓練（自行車、重訓、游泳等）脈絡，給予次日最科學的訓練/休整處方。
+* **跨世代多模型動態降級 (Fallback Mechanism)**：啟動時自動掃描最新各世代 Flash / Hydrogen 模型並依版本排序。遭遇尖峰 503 UNAVAILABLE、429 配額或模型下線錯誤時，自動無縫切換備援模型重試。
 
 ### 4. 📈 ACWR 負荷比與體能監測 (Acute:Chronic Workload Ratio)
 * 自動回溯近 28 天訓練大數據，精準計算急劇負荷（近 7 天）與慢性體能（近 28 天週均）之比值。
@@ -193,11 +195,13 @@ $$
   * 🔵 **3.0% ~ 5.0% (最佳適應 Well-Trained)**：心率與配速平衡良好，具備優秀馬拉松耐力。
   * 🟡 **5.1% ~ 8.0% (輕度漂移 Moderate Drift)**：後半程出現散熱或肌耐力衰退，提醒加強電解質與水分補充。
   * 🔴 **> 8.0% (顯著解耦 High Drift)**：體能超載、配速過快或外部熱壓力過大，AI 教練主動提出預警。
-* **走勢圖視覺化**：於各公里配速心率雙軸走勢圖自動標繪半程分割線 (Halfway Split) 與解耦漂移數據徽章。
+* **前後半程配速對比 (Split Analysis)**：同步輸出前半程 vs 後半程平均配速與秒數變化，直接判定 **負分段加速 (Negative Split)**、**後半程掉速 (Positive Split)** 或 **均速 (Even Split)**。
+* **走勢圖視覺化**：於各公里配速心率雙軸走勢圖自動標繪半程分割線 (Halfway Split) 與解耦漂移數據徽章；面對全馬 42+ 圈會自動調整 X 軸刻度密度並裁剪極端慢速尾圈，確保曲線清晰不重疊。
 
-### 7. 🏆 未來三個月目標賽事倒數與 AI 每日訓練菜單 (Race Target & Daily Workout Menu)
-* **Garmin 訓練行事曆目標賽事自動擷取**：系統自動檢索 Garmin Connect 日曆中未來三個月（90 天內）已報名之目標賽事（包含全馬、半馬或自訂路跑賽事）。
-* **跨月日曆網格智慧去重**：針對 Garmin Connect 月曆 API 前後週重疊問題，採用 `item.id` 唯一性集合進行去重，並嚴格依時間窗口過濾過期與超期賽事，絕不重複列出。
+### 7. 🏆 目標賽事倒數、昨日賽事復盤與賽後恢復週期 (Race Target & Recovery)
+* **Garmin 訓練行事曆目標賽事自動擷取**：系統自動檢索 Garmin Connect 日曆中未來三個月（90 天內）已報名之目標賽事（包含全馬、半馬或自訂路跑賽事），同時支援回溯近 7 日剛完賽賽事（涵蓋跨月初邊界）。
+* **昨日賽事日關聯 & 7 日賽後恢復保護**：隔天（D+1）分析昨日比賽時自動帶入賽事名稱與距離進行正式賽事復盤；賽後第 2～7 天（D+2 ~ D+7）持續保留「近期剛完賽目標賽事」脈絡，避免休整日或恢復期過早開出高強度課表。
+* **跨月日曆網格智慧去重**：針對 Garmin Connect 月曆 API 前後週重疊問題，採用 `item.id` 唯一性集合進行去重，並嚴格依時間窗口過濾賽事，絕不重複列出。
 * **倒數週數與里程卡片**：於 Telegram 日報以清楚卡片呈現 `🚩 2026-10-25 (倒數 32 天 (約 4 週)) 2026 長榮航空城市觀光半程馬拉松 | 21.1km`（無賽事時自動優雅隱藏，不佔版面）。
 * **備賽週期判讀與每日具體菜單**：Gemini AI 自動根據賽事倒數天數/週數，識別跑者當前處於何種備賽階段（基礎耐力期、專項速度期、高峰期、賽前減量期 Taper），結合近期的 ACWR 急性與慢性負荷比、今日生理恢復狀況與丹尼爾 VDOT 靶心配速，為跑者量身開立「**每日具體訓練菜單**」（指定訓練目的 E/M/T/I/R、預計公里數、精確靶心配速範圍與暖身收操指引）。系統更**智慧識別平日與週末**：平日開立基準核心課表並同時提供「晨跑族（動態熱身/空腹燃脂）vs. 夜跑族（能量儲備/壓力調控）」二擇一指南；週末則動態附上「下午起跑（首選）、晨間起跑（賽事模擬）、晚間起跑（短平快）」之 3 大起跑時段微調指南！
 
@@ -212,7 +216,7 @@ $$
   * **字數安全切分**：每則訊息若超過 4000 字元上限，系統依然會自動再行分段，絕不因字數超限而遺失任何文字。
 * **獨立高清晰度圖表 (Standalone Telemetry Charts)**：告別多圖擠在一起排版擁擠的困擾，系統將各項核心指標獨立繪製為大尺寸圖表（包含 **ACWR 急性與慢性負荷指標圖**、**Z1~Z5 心率區間環圈甜甜圈圖**、**各公里配速心率雙軸走勢圖**），透過 Telegram 逐張推播，手機端滿版呈現、字體大且數據清晰易讀。
 * **純文字清晰分圈明細**：逐公里配速、心率、海拔上升、步頻與總時間以條理分明之格式排版，保證在所有裝置上完美相容。
-* **LaTeX 符號淨化**：自動過濾 AI 產生的 `$\rightarrow$` 數學符號為標準箭頭 `→`。
+* **格式與符號淨化**：自動過濾 AI 產生的 `$\rightarrow$` LaTeX 符號為箭頭 `→`，並清理純文字模式會外露的 Markdown 語法（`**粗體**`、`###` 標題與 `* ` 條列），確保 Telegram 手機排版整潔。
 
 ---
 
@@ -222,6 +226,7 @@ $$
 AI_Coach/
 ├── .github/
 │   └── workflows/
+│       ├── ci.yml               # Push / PR 自動執行單元測試 CI 工作流
 │       ├── daily_task.yml       # GitHub Actions 每日排程與自動化環境
 │       ├── test_calendar.yml    # 目標賽事與行事曆手動一鍵驗證工作流
 │       └── cleanup_runs.yml     # 一鍵清空所有 Actions 歷史執行紀錄工作流
@@ -229,6 +234,9 @@ AI_Coach/
 │   ├── assets/                  # 網站專用高解析度架構圖與遙測圖表
 │   ├── index.html               # 繁體中文官網 (Tailwind CSS + VDOT/解耦率線上試算)
 │   └── en.html                  # 英文版官網 (English Landing Page with Interactive Lab)
+├── tests/
+│   └── test_ai_coach.py         # 完整離線單元測試套件 (Mock Garmin/AI/Weather/Charts)
+├── requirements.txt             # 相依套件與相容版本定義
 ├── config.py                    # 集中管理 Secrets 環境變數與跑者個人化參數
 ├── utils.py                     # VDOT 跑力、有氧解耦率、目標賽事倒數、ACWR 與生理恢復運算工具
 ├── weather_service.py           # Open-Meteo 氣象 API 連線與歷史小時氣候模組
@@ -297,10 +305,13 @@ Gemini API 提供頂尖的生成式 AI 推理能力，用於深度解析跑者�
 
 ---
 
-### 3. ⌚ Garmin Connect 帳號說明 (`GARMIN_EMAIL`, `GARMIN_PWD`)
+### 3. ⌚ Garmin Connect 帳號說明 (`GARMIN_EMAIL`, `GARMIN_PWD`, 選填 `GARMINTOKENS`)
 * 本專案採用開源 Python 庫 [`python-garminconnect`](https://github.com/cyberjunky/python-garminconnect)，直接與 Garmin Connect 雲端伺服器進行同步。
 * **無需申請企業 API**：Garmin 官方的 Health API 通常僅對企業開放且審核門檻高，本專案只需填入您平時在手機 **Garmin Connect App 登入時使用的信箱與密碼** 即可。
-* **雙重驗證 (2FA) 提示**：若您的 Garmin 帳號已開啟雙重驗證，可能導致自動排程腳本在遠端登入時受阻。若遇到登入失敗，請確認 Garmin Connect 帳號的安全性設定。
+* **雙重驗證 (2FA) / 雲端限流備援 (`GARMINTOKENS`)**：若帳號開啟 2FA 或欲避免雲端 IP 重複觸發登入限流，可於本機登入一次後匯出 OAuth Token 並填入 `GARMINTOKENS` Secret（系統會優先以 Token 登入，失效時再自動降級為帳密登入）：
+  ```powershell
+  py -c "import getpass; from garminconnect import Garmin; e = input('Garmin Email: ').strip(); p = getpass.getpass('Garmin Password: '); g = Garmin(e, p, prompt_mfa=lambda: input('MFA Code: ').strip()); g.login(); print(); print(g.client.dumps())"
+  ```
 
 ---
 
@@ -363,6 +374,7 @@ GitHub Secrets 是 GitHub 提供的加密環境變數庫。存放在這裡的帳
 
 | Secret 名稱 | 說明 | 預設值參考 | 範例與填寫建議 |
 | :--- | :--- | :---: | :--- |
+| `GARMINTOKENS` | Garmin OAuth Token (選填，優先登入) | `未設定` | 支援原始 Token JSON 或 Base64 字串；未設定或過期時自動改用帳密登入 |
 | `RUNNER_NAME` | 跑者稱呼 / 暱稱 | `Runner` | 填寫自己的稱呼，供 AI 教練抬頭與對話稱呼使用 |
 | `RUNNER_BIRTH_YEAR` | 出生年份 (四位數西元) | `1985` | 用於 AI 精準推算年齡、生理衰減與心率負荷（例如 `1988`） |
 | `RUNNER_PB` | 馬拉松或主要目標賽事 PB | `3:45` | 個人全馬最佳成績（例如 `3:30` 或 `4:15`），供 AI 評估強度 |
