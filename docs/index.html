@@ -896,7 +896,7 @@
             </div>
             <h3 class="text-base font-semibold text-slate-100 mb-1.5">啟用 Actions 自動排程</h3>
             <p class="text-slate-400 text-xs sm:text-sm leading-relaxed mb-4">
-              點擊倉庫上方的 <b>Actions</b> 分頁，啟用工作流。每天清晨約 03:55 ~ 04:00 (UTC 19:55) 即會自動執行並推播！您也可以隨時點選 <b>Run workflow</b> 立即手動測試。
+              點擊倉庫上方的 <b>Actions</b> 分頁，啟用工作流。每天清晨約 03:23 (UTC 19:23) 即會自動執行並於 04:00 前推播！您也可以隨時點選 <b>Run workflow</b> 立即手動測試。
             </p>
           </div>
           <div class="p-2.5 rounded-lg bg-[#0f1520] border border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
@@ -997,7 +997,7 @@
             <i class="fa-solid fa-chevron-down text-xs text-slate-500 group-open:rotate-180 transition-transform"></i>
           </summary>
           <p class="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed pl-6">
-            可以。只需編輯倉庫中的 <code class="text-sky-300">.github/workflows/daily_task.yml</code> 檔案，修改裡面的 <code class="text-amber-300">cron</code> 表達式即可（預設為 UTC 19:55，即台灣時間清晨約 03:55 ~ 04:00 送達，讓跑者一早起床即可掌握當晚課表與全日飲食補給規劃；注意 GitHub 採用 UTC 時間，台灣時間需減去 8 小時）。
+            可以。只需編輯倉庫中的 <code class="text-sky-300">.github/workflows/daily_task.yml</code> 檔案，修改裡面的 <code class="text-amber-300">cron</code> 表達式即可（預設為 UTC 19:23，即台灣時間清晨 03:23 冷門分鐘觸發，避開整點尖峰並保留緩衝於 04:00 前送達；注意 GitHub 採用 UTC 時間，台灣時間需減去 8 小時）。
           </p>
         </details>
 

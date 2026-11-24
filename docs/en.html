@@ -893,7 +893,7 @@
             </div>
             <h3 class="text-base font-semibold text-slate-100 mb-1.5">Enable GitHub Actions</h3>
             <p class="text-slate-400 text-xs sm:text-sm leading-relaxed mb-4">
-              Click the <b>Actions</b> tab in your repo and enable workflows. It runs automatically at ~03:55–04:00 AM UTC+8 (UTC 19:55), or you can trigger <b>Run workflow</b> manually anytime!
+              Click the <b>Actions</b> tab in your repo and enable workflows. It runs automatically at ~03:23 AM UTC+8 (UTC 19:23) to deliver before 04:00 AM, or you can trigger <b>Run workflow</b> manually anytime!
             </p>
           </div>
           <div class="p-2.5 rounded-lg bg-[#0f1520] border border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
@@ -994,7 +994,7 @@
             <i class="fa-solid fa-chevron-down text-xs text-slate-500 group-open:rotate-180 transition-transform"></i>
           </summary>
           <p class="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed pl-6">
-            Absolutely. Simply edit <code class="text-sky-300">.github/workflows/daily_task.yml</code> in your repository and adjust the <code class="text-amber-300">cron</code> expression (default is UTC 19:55, which delivers around 03:55~04:00 AM local time for early risers to review their plan for the day; note GitHub Actions cron operates in UTC).
+            Absolutely. Simply edit <code class="text-sky-300">.github/workflows/daily_task.yml</code> in your repository and adjust the <code class="text-amber-300">cron</code> expression (default is UTC 19:23, an off-peak minute at 03:23 AM UTC+8 with buffer to deliver before 04:00 AM; note GitHub Actions cron operates in UTC).
           </p>
         </details>
 

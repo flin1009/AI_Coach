@@ -2,8 +2,8 @@ name: Garmin AI Coach Report
 
 on:
   schedule:
-    # 台灣時間清晨約 03:55 ~ 04:00 晨跑前送達 = UTC 19:55 (錯開整點尖峰)
-    - cron: '55 19 * * *'
+    # 台灣時間清晨約 03:23 送達 = UTC 19:23 (質數冷門分鐘，避開整點/5分倍數尖峰並預留 04:00 前緩衝)
+    - cron: '23 19 * * *'
   workflow_dispatch: # 允許手動從網頁按按鈕執行
 
 jobs:

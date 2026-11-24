@@ -402,11 +402,11 @@ Defined in [`.github/workflows/daily_task.yml`](.github/workflows/daily_task.yml
 ```yaml
 on:
   schedule:
-    # Default: Daily at UTC 19:55 (Corresponds to ~03:55-04:00 AM local time in UTC+8)
-    - cron: '55 19 * * *'
+    # Default: Daily at UTC 19:23 (03:23 AM in UTC+8; off-peak minute with buffer before 04:00 AM)
+    - cron: '23 19 * * *'
 ```
 * **UTC Time Conversion Note**: GitHub Actions operates on Coordinated Universal Time (UTC).
-  * To receive at **04:00 AM in UTC+8**: Set to `- cron: '55 19 * * *'`.
+  * To receive before **04:00 AM in UTC+8**: Set to `- cron: '23 19 * * *'` (03:23 AM local time, avoiding top-of-hour/5-min spikes).
   * To receive at **06:00 AM in UTC+8**: `06:00 - 8 hours = UTC 22:00`, set to `- cron: '0 22 * * *'`.
   * To receive at **07:00 AM in EST (UTC-5)**: `07:00 + 5 hours = UTC 12:00`, set to `- cron: '0 12 * * *'`.
 * 📖 **Helpful Resources**:
